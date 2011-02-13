@@ -71,13 +71,17 @@ function theme_auto_opengraph_node_body_value($data, $property, $field) {
 function theme_auto_opengraph_node_locations_value($data, $property, $field) {
   switch ($property) {
     case 'street-address':
-      return "{$data->locations[0]['street']}, {$data->locations[0]['additional']}";
+      $ret = $data->locations[0]['street'];
+      if ($additional = $data->locations[0]['additional']) $ret .= ", $additional"; // intentional assignment of $additional
+      return $ret;
     case 'locality':
       return $data->locations[0]['city'];
     case 'postal-code':
       return $data->locations[0]['postal_code'];
     case 'country-name':
       return $data->locations[0]['country_name'];
+    case 'region':
+      return $data->locations[0]['province_name'];
     default:
       return $data->locations[0][$property];
   }

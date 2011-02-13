@@ -82,3 +82,14 @@ function taxonomy_auto_opengraph_fields($object) {
       break;
   }
 }
+
+function auto_opengraph_auto_opengraph_fields($object) {
+  if ($object == 'node') {
+    return array(
+      'og_type' => array(
+        'title' => t('Opengraph type selection'),
+        'properties' => array('type'),
+      ),
+    );
+  }
+}

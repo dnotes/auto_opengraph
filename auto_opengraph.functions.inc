@@ -16,27 +16,27 @@ function _auto_opengraph_add_basic(&$og) {
   if (!$og['description'] && $description = variable_get('auto_opengraph_default_description', '')) { $og['description'] = $description; }
 }
 
+function _auto_opengraph_add_default(&$og, $property) {
+  if (!$og[$property] && ($value = variable_get("auto_opengraph_default_$property", ''))) {
+    $og[$property] = check_plain($value);
+  }
+}
+
 function _auto_opengraph_add_location(&$og) {
   foreach(array('latitude', 'longitude', 'street-address', 'locality', 'region', 'postal-code', 'country-name') as $property) {
-    if (!$og[$property]) {
-      $og[$property] = check_plain(variable_get("auto_opengraph_default_$property", ''));
-    }
+    _auto_opengraph_add_default($og, $property);
   }
 }
 
 function _auto_opengraph_add_contact(&$og) {
   foreach(array('email', 'phone_number', 'fax_number') as $property) {
-    if (!$og[$property]) {
-      $og[$property] = check_plain(variable_get("auto_opengraph_default_$property", ''));
-    }
+    _auto_opengraph_add_default($og, $property);
   }
 }
 
 function _auto_opengraph_add_fb(&$og) {
   foreach(array('fb:admins', 'fb:app_id') as $property) {
-    if (!$og[$property]) {
-      $og[$property] = check_plain(variable_get("auto_opengraph_default_$property", ''));
-    }
+    _auto_opengraph_add_default($og, $property);
   }
 }
 

@@ -13,13 +13,48 @@ function auto_opengraph_settings_form() {
   $all_properties = auto_opengraph_properties();
   foreach ($all_properties as $property => $section) { $og[$property] = array(); }
 
-  foreach (array('defaults', 'facebook', 'node', 'user', 'taxonomy', 'other') as $part) {
+  foreach (array('settings', 'defaults', 'facebook', 'node', 'user', 'taxonomy', 'other') as $part) {
     if (function_exists($function = "_auto_opengraph_settings_form_$part")) {
       $form[$part] = call_user_func($function, $og);
     }
   }
 
   return system_settings_form($form);
+}
+
+function _auto_opengraph_settings_form_settings() {
+
+  $form = array(
+    '#type' => 'fieldset',
+    '#title' => t('Settings'),
+    '#collapsible' => TRUE,
+  );
+
+  $form['auto_opengraph_front_page'] = array(
+    '#type' => 'checkbox',
+    '#default_value' => variable_get('auto_opengraph_front_page', TRUE),
+    '#title' => t('Implement site-wide tags for front page')
+  );
+  $form['auto_opengraph_site_type'] = array(
+    '#type' => 'select',
+    '#default_value' => variable_get('auto_opengraph_site_type', 'website'),
+    '#title' => t('Site type'),
+    '#options' => array('website' => t('website'), 'blog' => t('blog')),
+  );
+  $form['auto_opengraph_site_url'] = array(
+    '#type' => 'textfield',
+    '#default_value' => variable_get('auto_opengraph_site_url', url('<front>', array('absolute' => TRUE))),
+    '#title' => t('Site url')
+  );
+
+//  $form['auto_opengraph_advanced'] = array(
+//    '#type' => 'checkbox',
+//    '#default_value' => variable_get('auto_opengraph_advanced', TRUE),
+//    '#title' => t('Use advanced mode for node types'),
+//    '#description' => t('For most use cases, the default functionality should be sufficient.<br/>  Advanced mode allows you to set fields for each individual node type.')
+//  );
+
+  return $form;
 }
 
 function _auto_opengraph_settings_form_defaults() {
@@ -138,7 +173,7 @@ function _auto_opengraph_settings_form_node($og) {
     }
   }
 
-  $form = array_merge($form, _auto_opengraph_settings_form_render_fields('node', $og));
+  $form = array_merge($form, _auto_opengraph_settings_form_property_fields('node', $og));
 
   $form['nodetypes'] = array(
     '#type' => 'fieldset',
@@ -154,7 +189,7 @@ function _auto_opengraph_settings_form_node($og) {
       '#collapsed' => TRUE,
       '#collapsible' => TRUE,
     );
-    $form['nodetypes'][$nodetype] = array_merge($form['nodetypes'][$nodetype], _auto_opengraph_settings_form_get_section_settings("node_item_$nodetype"));
+    $form['nodetypes'][$nodetype] = array_merge($form['nodetypes'][$nodetype], _auto_opengraph_settings_form_get_section_settings("node_item_$nodetype", $og));
     if (module_exists('og') && og_is_group_type($nodetype)) {
       $form['nodetypes'][$nodetype]['og'] = array(
         '#type' => 'fieldset',
@@ -197,16 +232,8 @@ function _auto_opengraph_settings_form_taxonomy($og) {
     '#collapsible' => TRUE,
     '#collapsed' => TRUE,
   );
-  $form = array_merge($form, _auto_opengraph_settings_form_get_section_settings('taxonomy'));
-  if ($fields = _auto_opengraph_settings_form_get_fields('taxonomy', $og)) { // intentional assingment of $fields
-    $form['fields'] = array(
-      '#type' => 'fieldset',
-      '#title' => t('Property overrides'),
-      '#collapsible' => TRUE,
-      '#collapsed' => TRUE,
-    );
-    $form['fields'] = array_merge($form['fields'], _auto_opengraph_settings_form_render_fields('taxonomy', $og));
-  }
+  $form = array_merge($form, _auto_opengraph_settings_form_get_section_settings('taxonomy', $og));
+  $form = array_merge($form, _auto_opengraph_settings_form_property_fields('taxonomy', $og));
   return $form;
 }
 
@@ -217,20 +244,12 @@ function _auto_opengraph_settings_form_other($og) {
     '#collapsible' => TRUE,
     '#collapsed' => TRUE,
   );
-  $form = array_merge($form, _auto_opengraph_settings_form_get_section_settings('other'));
-  if ($fields = _auto_opengraph_settings_form_get_fields('other', $og)) { // intentional assingment of $fields
-    $form['fields'] = array(
-      '#type' => 'fieldset',
-      '#title' => t('Property overrides'),
-      '#collapsible' => TRUE,
-      '#collapsed' => TRUE,
-    );
-    $form['fields'] = array_merge($form['fields'], _auto_opengraph_settings_form_render_fields('other', $og));
-  }
+  $form = array_merge($form, _auto_opengraph_settings_form_get_section_settings('other', $og));
+  $form = array_merge($form, _auto_opengraph_settings_form_property_fields('other', $og));
   return $form;
 }
 
-function _auto_opengraph_settings_form_get_section_settings($section) {
+function _auto_opengraph_settings_form_get_section_settings($section, $og) {
   $form["auto_opengraph_$section"] = array(
     '#type' => 'checkbox',
     '#title' => t('Enable'),
@@ -238,10 +257,18 @@ function _auto_opengraph_settings_form_get_section_settings($section) {
   );
   $form["auto_opengraph_{$section}_og_type"] = array(
     '#type' => 'textfield',
-    '#size' => 15,
+    '#size' => 10,
     '#title' => "Default opengraph type",
     '#default_value' => variable_get("auto_opengraph_{$section}_og_type", 'article'),
   );
+  if (!empty($og['type'])) {
+    $form["auto_opengraph_{$section}_og_type_field"] = array(
+      '#type' => 'select',
+      '#title' => "Field to override default type",
+      '#default_value' => variable_get("auto_opengraph_{$section}_og_type_field", FALSE),
+      '#options' => array_merge(array(0 => t('none')), $og['type']),
+    );
+  }
   $form["auto_opengraph_{$section}_add_location"] = array(
     '#type' => 'select',
     '#options' => array(
@@ -266,6 +293,7 @@ function _auto_opengraph_settings_form_get_section_settings($section) {
     '#title' => t('Add contact headers'),
     '#default_value' => variable_get("auto_opengraph_{$section}_add_contact", FALSE),
   );
+  $each = stripos($section, 'ode') ? 'node' : $section;
   $form["auto_opengraph_{$section}_add_fb"] = array(
     '#type' => 'select',
     '#options' => array(
@@ -274,6 +302,7 @@ function _auto_opengraph_settings_form_get_section_settings($section) {
       'each' => t('Override each'),
       'all' => t('Override all'),
       'fields' => t('Fields only'),
+      'choose' => t("Choose for each $each"),
     ),
     '#title' => t('Add facebook headers (admins & app_id)'),
     '#default_value' => variable_get("auto_opengraph_{$section}_add_fb", FALSE),
@@ -290,56 +319,57 @@ function _auto_opengraph_settings_form_get_fields($object, &$og) {
   foreach ($fields as $field => $data) {
     foreach ($data['properties'] as $property) {
       if (in_array($property, array_keys($og))) {
-        $og[$property][$field] = $field['title'];
+        $og[$property][$field] = $data['title'];
       }
     }
   }
 
 }
 
-function _auto_opengraph_settings_form_render_fields($object, &$og) {
+function _auto_opengraph_settings_form_property_fields($object, $og) {
+  _auto_opengraph_settings_form_get_fields('other', $og);
   $og = array_filter($og);
   $all_properties = auto_opengraph_properties();
   foreach ($og as $prop => $options) {
     if (stripos($prop, 'audio:') === 0 && !empty($og['audio'])) {
-      $form['audio_meta']["auto_opengraph_{$object}_field_$prop"] = array(
+      $fields['audio_meta']["auto_opengraph_{$object}_field_$prop"] = array(
         '#type' => 'select',
         '#options' => array_merge(array(0 => 'none'), $options),
         '#default_value' => variable_get("auto_opengraph_{$object}_field_$prop", 0),
         '#title' => t(str_replace(':', ' ', "set opengraph <b>$prop</b> from"))
       );
-      $form['audio_meta']['#type'] = 'fieldset';
-      $form['audio_meta']['#title'] = t('Audio Meta');
-      $form['audio_meta']['#collapsible'] = TRUE;
-      $form['audio_meta']['#collapsed'] = TRUE;
+      $fields['audio_meta']['#type'] = 'fieldset';
+      $fields['audio_meta']['#title'] = t('Audio Meta');
+      $fields['audio_meta']['#collapsible'] = TRUE;
+      $fields['audio_meta']['#collapsed'] = TRUE;
     }
     elseif (stripos($prop, 'video:') === 0 && !empty($og['video'])) {
-      $form['video_meta']["auto_opengraph_{$object}_field_$prop"] = array(
+      $fields['video_meta']["auto_opengraph_{$object}_field_$prop"] = array(
         '#type' => 'select',
         '#options' => array_merge(array(0 => 'none'), $options),
         '#default_value' => variable_get("auto_opengraph_{$object}_field_$prop", 0),
         '#title' => t(str_replace(':', ' ', "set opengraph <b>$prop</b> from"))
       );
-      $form['video_meta']['#type'] = 'fieldset';
-      $form['video_meta']['#title'] = t('Video Meta');
-      $form['video_meta']['#collapsible'] = TRUE;
-      $form['video_meta']['#collapsed'] = TRUE;
+      $fields['video_meta']['#type'] = 'fieldset';
+      $fields['video_meta']['#title'] = t('Video Meta');
+      $fields['video_meta']['#collapsible'] = TRUE;
+      $fields['video_meta']['#collapsed'] = TRUE;
     }
     elseif ($section = $all_properties[$prop]) { // intentional assignment of $section
-      $form[$section]["auto_opengraph_{$object}_field_$prop"] = array(
+      $fields[$section]["auto_opengraph_{$object}_field_$prop"] = array(
         '#type' => 'select',
         '#options' => array_merge(array(0 => 'none'), $options),
         '#default_value' => variable_get("auto_opengraph_{$object}_field_$prop", 0),
         '#title' => t(str_replace(':', ' ', "set opengraph <b>$prop</b> from"))
       );
       $title = $section == 'fb' ? 'Facebook' : ucfirst($section);
-      $form[$section]['#type'] = 'fieldset';
-      $form[$section]['#title'] = t($title);
-      $form[$section]['#collapsible'] = TRUE;
-      $form[$section]['#collapsed'] = TRUE;
+      $fields[$section]['#type'] = 'fieldset';
+      $fields[$section]['#title'] = t($title);
+      $fields[$section]['#collapsible'] = TRUE;
+      $fields[$section]['#collapsed'] = TRUE;
     }
     else {
-      $form["auto_opengraph_{$object}_field_$prop"] = array(
+      $fields["auto_opengraph_{$object}_field_$prop"] = array(
         '#type' => 'select',
         '#options' => array_merge(array(0 => 'none'), $options),
         '#default_value' => variable_get("auto_opengraph_{$object}_field_$prop", 0),
@@ -349,10 +379,27 @@ function _auto_opengraph_settings_form_render_fields($object, &$og) {
   }
   $no_og = array_diff_key(auto_opengraph_properties(),$og);
   foreach ($no_og as $prop) {
-    $form["auto_opengraph_{$object}_field_$prop"] = array(
+    $fields["auto_opengraph_{$object}_field_$prop"] = array(
       '#type' => 'value',
       '#value' => 0
     );
+  }
+  foreach ($fields as $field) {
+    if ($field['#type'] && $field['#type'] != 'value') {
+      $expand = TRUE;
+    }
+  }
+  if ($expand) { // intentional assingment of $fields
+    $form['fields'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Property overrides'),
+      '#collapsible' => TRUE,
+      '#collapsed' => TRUE,
+    );
+    $form['fields'] = array_merge($form['fields'], $fields);
+  }
+  else {
+    $form = $fields;
   }
   return $form;
 }
