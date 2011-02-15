@@ -13,11 +13,11 @@ function auto_opengraph_schema() {
       'nid' => array(
         'type' => 'int',
         'unsigned' => TRUE,
-        'not null' => TRUE,
-        'default' => 0,
+        'not null' => FALSE,
+        'default' => NULL,
         'description' => t('A node id'),
       ),
-      'fb_page' => array(
+      'auto_opengraph_fb_page' => array(
         'type' => 'int',
         'size' => 'tiny',
         'unsigned' => TRUE,
@@ -25,7 +25,7 @@ function auto_opengraph_schema() {
         'default' => 0,
         'description' => t('Boolean whether to create a facebook page')
       ),
-      'og_type' => array(
+      'auto_opengraph_type' => array(
         'type' => 'varchar',
         'length' => 255,
         'description' => t('the og:type for the node, if any'),
@@ -33,8 +33,6 @@ function auto_opengraph_schema() {
     ),
     'unique keys' => array(
       'nid' => array('nid'),
-      'tid' => array('tid'),
-      'uid' => array('uid'),
     ),
   );
   return $schema;
@@ -77,5 +75,5 @@ function auto_opengraph_install() {
 
 function auto_opengraph_uninstall() {
   drupal_uninstall_schema('auto_opengraph');
-  db_query("DELETE FROM {variable} WHERE name LIKE 'auto_opengraph_%%'");
+  db_query("DELETE FROM {variable} WHERE name LIKE 'auto_opengraph_%'");
 }

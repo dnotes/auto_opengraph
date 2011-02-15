@@ -92,3 +92,24 @@ function theme_auto_opengraph_node_taxonomy_value($data, $property, $field) {
     $y = $n;
   }
 }
+
+function theme_auto_opengraph_node_fb_author_value($data, $property, $field) {
+  if ($fbu = fb_get_fbu($data->uid)) {
+    return $fbu;
+  }
+}
+
+function theme_auto_opengraph_node_fb_og_admins_value($data, $property, $field) {
+  if (module_exists('og') && module_exists('fb')) {
+    $sql = og_list_users_sql(TRUE, TRUE, '');
+    $q = db_query($sql, $data->nid);
+    while ($u = db_fetch_object($q)) {
+      if ($fbu = fb_get_fbu($u->uid)) { // intentional assignment of $fbu
+        $ids[] = $fbu;
+      }
+    }
+    if (!empty($ids)) {
+      return implode(',', $ids);
+    }
+  }
+}

@@ -42,17 +42,15 @@ function auto_opengraph_form_alter(&$form, $form_state, $form_id) {
       $form['auto_opengraph']['auto_opengraph_fb_page'] = array(
         '#type' => 'checkbox',
         '#title' => t('Create a facebook page'),
-        '#description' => t('Facebook will create a "facebook page" if it has your facebook account or an app id.'),
+        '#description' => t('Facebook will create a "facebook page" if it has your facebook account or an application id.'),
         '#default_value' => $form['#node']->auto_opengraph_fb_page,
       );
     }
     if (is_array($form['auto_opengraph'])) {
-      $form['auto_opengraph'] = array(
-        '#type' => 'fieldset',
-        '#title' => t('Facebook'),
-        '#collapsible' => TRUE,
-        '#collapsed' => TRUE,
-      );
+      $form['auto_opengraph']['#type'] = 'fieldset';
+      $form['auto_opengraph']['#title'] = t('Facebook');
+      $form['auto_opengraph']['#collapsible'] = TRUE;
+      $form['auto_opengraph']['#collapsed'] = TRUE;
     }
   }
 }

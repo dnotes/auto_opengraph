@@ -190,32 +190,6 @@ function _auto_opengraph_settings_form_node($og) {
       '#collapsible' => TRUE,
     );
     $form['nodetypes'][$nodetype] = array_merge($form['nodetypes'][$nodetype], _auto_opengraph_settings_form_get_section_settings("node_item_$nodetype", $og));
-    if (module_exists('og') && og_is_group_type($nodetype)) {
-      $form['nodetypes'][$nodetype]['og'] = array(
-        '#type' => 'fieldset',
-        '#title' => t('Organic Groups'),
-      );
-      if (module_exists('fb_connect')) {
-        $form['nodetypes'][$nodetype]['og']["auto_opengraph_node_item_{$nodetype}_use_og_admins"] = array(
-          '#type' => 'select',
-          '#options' => array(
-            0 => t('none'),
-            'default' => t('site default facebook admins only'),
-            'default,owner' => t('site default admins and group owner'),
-            'default,admins' => t('site default admins and all group administrators'),
-            'owner' => t('group owner only'),
-            'admins' => t('all group administrators'),
-          ),
-          '#title' => t('Administrators for Facebook page'),
-          '#default_value' => variable_get("auto_opengraph_node_item_{$nodetype}_use_og_admins", 0),
-        );
-      }
-      $form['nodetypes'][$nodetype]['og']["auto_opengraph_node_item_{$nodetype}_use_og_description"] = array(
-        '#type' => 'checkbox',
-        '#title' => t('Override OpenGraph description with Organic Groups description'),
-        '#default_value' => variable_get("auto_opengraph_node_item_{$nodetype}_use_og_description", TRUE),
-      );
-    }
   }
   return $form;
 }
