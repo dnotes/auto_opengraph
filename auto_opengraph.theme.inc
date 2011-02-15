@@ -61,11 +61,33 @@ function theme_auto_opengraph_widget_emimage_value($data, $property, $widget = N
 }
 
 function theme_auto_opengraph_node_teaser_value($data, $property, $field) {
-  return strip_tags($data->teaser);
+  $text = strip_tags($data->teaser);
+  $ret = array();
+  $num = preg_match('|([^.!?][.!?][^.!?][.!?])|', $text, $ret);
+  if (is_array($ret)) {
+    return $ret;
+  }
+  elseif ($data->teaser) {
+    return $data->teaser;
+  }
+  else {
+    return variable_get('auto_opengraph_default_description', FALSE);
+  }
 }
 
 function theme_auto_opengraph_node_body_value($data, $property, $field) {
-  return strip_tags($data->body);
+  $text = strip_tags($data->body);
+  $ret = array();
+  $num = preg_match('|([^.!?][.!?][^.!?][.!?])|', $text, $ret);
+  if (is_array($ret)) {
+    return $ret;
+  }
+  elseif ($data->body) {
+    return $data->body;
+  }
+  else {
+    return variable_get('auto_opengraph_default_description', FALSE);
+  }
 }
 
 function theme_auto_opengraph_node_locations_value($data, $property, $field) {
