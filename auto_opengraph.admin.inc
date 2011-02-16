@@ -41,10 +41,11 @@ function _auto_opengraph_settings_form_settings() {
     '#title' => t('Site type'),
     '#options' => array('website' => t('website'), 'blog' => t('blog')),
   );
-  $form['auto_opengraph_site_url'] = array(
-    '#type' => 'textfield',
-    '#default_value' => variable_get('auto_opengraph_site_url', url('<front>', array('absolute' => TRUE))),
-    '#title' => t('Site url')
+  $form['auto_opengraph_disable_for_tabs'] = array(
+    '#type' => 'checkbox',
+    '#default_value' => variable_get('auto_opengraph_disable_for_tabs', TRUE),
+    '#title' => t('Disable opengraph meta tags for tabs (i.e. node/1/edit)'),
+    '#description' => t('Auto opengraph does not create opengraph tags on tab pages such as node or user edit pages.  If you want to implement your own system, you will need to siable this option.')
   );
 
 //  $form['auto_opengraph_advanced'] = array(
@@ -196,7 +197,15 @@ function _auto_opengraph_settings_form_node($og) {
 
 /* TODO:
 function _auto_opengraph_settings_form_user($og) {
-
+  $form = array(
+    '#type' => 'fieldset',
+    '#title' => t('Users') . (variable_get('auto_opengraph_user', TRUE) ? t(' (enabled)') : ''),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+  $form = array_merge($form, _auto_opengraph_settings_form_get_section_settings('user', $og));
+  $form = array_merge($form, _auto_opengraph_settings_form_property_fields('user', $og));
+  return $form;
 } /* */
 
 function _auto_opengraph_settings_form_taxonomy($og) {

@@ -12,7 +12,6 @@ function _auto_opengraph_add_basic(&$og) {
   if (!$og['type']) { $og['type'] = 'article'; }
   if (!$og['image'] && $image = variable_get('auto_opengraph_default_image', '')) { $og['image'] = $image; } // TODO: image upload for default
   if ($og['image']) { $og['image'] = theme('auto_opengraph_image', $og['image']); }
-  if (!$og['url']) { $og['url'] = $vars['path']; }
   if (!$og['description'] && $description = variable_get('auto_opengraph_default_description', '')) { $og['description'] = $description; }
 }
 

@@ -63,9 +63,9 @@ function theme_auto_opengraph_widget_emimage_value($data, $property, $widget = N
 function theme_auto_opengraph_node_teaser_value($data, $property, $field) {
   $text = strip_tags($data->teaser);
   $ret = array();
-  $num = preg_match('|([^.!?][.!?][^.!?][.!?])|', $text, $ret);
+  $num = preg_match('|([^.!?]+[.!?]+[^.!?]+[.!?]+)|', $text, $ret);
   if (is_array($ret)) {
-    return $ret;
+    return $ret[0];
   }
   elseif ($data->teaser) {
     return $data->teaser;
@@ -78,9 +78,9 @@ function theme_auto_opengraph_node_teaser_value($data, $property, $field) {
 function theme_auto_opengraph_node_body_value($data, $property, $field) {
   $text = strip_tags($data->body);
   $ret = array();
-  $num = preg_match('|([^.!?][.!?][^.!?][.!?])|', $text, $ret);
+  $num = preg_match('|([^.!?]+[.!?]+[^.!?]+[.!?]+)|', $text, $ret);
   if (is_array($ret)) {
-    return $ret;
+    return $ret[0];
   }
   elseif ($data->body) {
     return $data->body;

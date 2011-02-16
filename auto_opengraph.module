@@ -29,7 +29,7 @@ function auto_opengraph_form_alter(&$form, $form_state, $form_id) {
   }
   elseif (isset($form['type']) && isset($form['#node'])) {
     if (variable_get("auto_opengraph_node_field_type", FALSE) == 'auto_opengraph_type' ||
-        variable_get("auto_opengraph_node_item_{$form['#node']['type']}_og_type_field", FALSE) == 'auto_opengraph_type') {
+        variable_get("auto_opengraph_node_item_{$form['#node']->type}_og_type_field", FALSE) == 'auto_opengraph_type') {
       $form['auto_opengraph']['auto_opengraph_type'] = array(
         '#type' => 'select',
         '#title' => t('Opengraph type'),
@@ -38,7 +38,7 @@ function auto_opengraph_form_alter(&$form, $form_state, $form_id) {
         '#default_value' => $form['#node']->auto_opengraph_type,
       );
     }
-    if (variable_get("auto_opengraph_node_item_{$form['#node']['type']}_fb_page", FALSE) && user_access('set facebook page status on nodes')) {
+    if (variable_get("auto_opengraph_node_item_{$form['#node']->type}_fb_page", FALSE) && user_access('set facebook page status on nodes')) {
       $form['auto_opengraph']['auto_opengraph_fb_page'] = array(
         '#type' => 'checkbox',
         '#title' => t('Create a facebook page'),
@@ -168,6 +168,7 @@ function auto_opengraph_preprocess_page(&$vars) {
 
   $arg = arg(0);
   if ($arg == 'admin') return;
+  if (variable_get('auto_opengraph_disable_for_tabs', TRUE) && arg(2) && ($arg == 'node' || $arg == 'user')) return;
   $arg = in_array($arg, array('node', 'user', 'taxonomy')) ? $arg : 'other';
   if (!variable_get("auto_opengraph_$arg", TRUE)) return;
 
@@ -260,16 +261,9 @@ function auto_opengraph_preprocess_page(&$vars) {
     $og['type'] = $type;
   }
 
-  _auto_opengraph_add('basic', $og); // add basic fields (will not overwrite existing values)
-  foreach (array('location', 'contact', 'fb') as $section) {
-    if ($sections[$section] && ($sections[$section] != 'fields')) {  // only add the section data if it is enabled for this page
-      _auto_opengraph_add($section, $og); // add sections (will not overwrite existing values)
-    }
-  }
-
   if ($vars['is_front'] && variable_get('auto_opengraph_front_page', TRUE)) {
     $og['type'] = variable_get('auto_opengraph_site_type', 'website');
-    $og['url'] = ($url = check_url(variable_get('auto_opengraph_site_url', FALSE)) ? $url : url('<front>', array('absolute' => TRUE)));
+    $og['url'] = url('', array('absolute' => TRUE));
     foreach(array('image', 'fb:admins', 'fb:app_id') as $property) {
       if ($value = variable_get("auto_opengraph_default_$property", '')) { // intentional assignment of $value
         $og[$property] = $value;
@@ -277,10 +271,20 @@ function auto_opengraph_preprocess_page(&$vars) {
     }
   }
 
+  _auto_opengraph_add('basic', $og); // add basic fields (will not overwrite existing values)
+  foreach (array('location', 'contact', 'fb') as $section) {
+    if ($sections[$section] && ($sections[$section] != 'fields')) {  // only add the section data if it is enabled for this page
+      _auto_opengraph_add($section, $og); // add sections (will not overwrite existing values)
+    }
+  }
+
+  if (!$og['url']) { $og['url'] = url(implode('/',arg()), array('absolute' => TRUE)); }
+  if (!$og['title']) { $og['title'] = $vars['head_title']; }
+
   if (!empty($og)) {
     foreach ($og as $property => $value) {
       if (!in_array($property, array('fb:admins', 'fb:app_id'))) { $property = "og:$property"; }
-      drupal_set_html_head('<meta property="' . check_plain($property) . '" content="' . check_plain($value) . '" />');
+      drupal_set_html_head('<meta property="' . check_plain($property) . '" content="' . str_replace('"', "'", strip_tags($value)) . '" />');
     }
     $vars['head'] = drupal_get_html_head();
   }
