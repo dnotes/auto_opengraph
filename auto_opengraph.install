@@ -10,6 +10,13 @@ function auto_opengraph_schema() {
   $schema['auto_opengraph'] = array(
     'description' => t('For holding opengraph information'),
     'fields' => array(
+      'ogid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        'description' => t('Primary key')
+      ),
       'nid' => array(
         'type' => 'int',
         'unsigned' => TRUE,
@@ -31,6 +38,7 @@ function auto_opengraph_schema() {
         'description' => t('the og:type for the node, if any'),
       ),
     ),
+    'primary key' => array('ogid'),
     'unique keys' => array(
       'nid' => array('nid'),
     ),
@@ -76,4 +84,11 @@ function auto_opengraph_install() {
 function auto_opengraph_uninstall() {
   drupal_uninstall_schema('auto_opengraph');
   db_query("DELETE FROM {variable} WHERE name LIKE 'auto_opengraph_%'");
+}
+
+function auto_opengraph_update_6101() {
+  $ret = array();
+  db_add_field($ret, 'auto_opengraph', 'ogid', array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0, 'description' => t('Primary key')));
+  db_add_primary_key($ret, 'auto_opengraph', array('ogid'));
+  return $ret;
 }

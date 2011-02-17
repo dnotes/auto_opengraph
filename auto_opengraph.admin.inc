@@ -245,10 +245,10 @@ function _auto_opengraph_settings_form_get_section_settings($section, $og) {
     '#default_value' => variable_get("auto_opengraph_{$section}_og_type", 'article'),
   );
   if (!empty($og['type'])) {
-    $form["auto_opengraph_{$section}_og_type_field"] = array(
+    $form["auto_opengraph_{$section}_field_type"] = array(
       '#type' => 'select',
       '#title' => "Field to override default type",
-      '#default_value' => variable_get("auto_opengraph_{$section}_og_type_field", FALSE),
+      '#default_value' => variable_get("auto_opengraph_{$section}_field_type", FALSE),
       '#options' => array_merge(array(0 => t('none')), $og['type']),
     );
   }

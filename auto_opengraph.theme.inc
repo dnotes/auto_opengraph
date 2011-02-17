@@ -135,3 +135,7 @@ function theme_auto_opengraph_node_fb_og_admins_value($data, $property, $field) 
     }
   }
 }
+
+function theme_auto_opengraph_node_auto_opengraph_type_value($data, $property, $field) {
+  return $data->auto_opengraph_type;
+}

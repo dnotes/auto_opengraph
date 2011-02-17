@@ -35,15 +35,17 @@ function auto_opengraph_form_alter(&$form, $form_state, $form_id) {
         '#title' => t('Opengraph type'),
         '#options' => array_merge(array(0 => t('- use default -')), auto_opengraph_types()),
         '#description' => t('Facebook pages only recognize certain types of real word objects.  See <a href="http://developers.facebook.com/docs/opengraph">the opengraph doc page</a> for reference.'),
-        '#default_value' => $form['#node']->auto_opengraph_type,
+        '#default_value' => $form['#node']->auto_opengraph['auto_opengraph_type'],
       );
     }
-    if (variable_get("auto_opengraph_node_item_{$form['#node']->type}_fb_page", FALSE) && user_access('set facebook page status on nodes')) {
+    if (variable_get("auto_opengraph_node_item_{$form['#node']->type}_add_fb", FALSE) == 'choose' && user_access('set facebook page status on nodes')) {
       $form['auto_opengraph']['auto_opengraph_fb_page'] = array(
         '#type' => 'checkbox',
         '#title' => t('Create a facebook page'),
-        '#description' => t('Facebook will create a "facebook page" if it has your facebook account or an application id.'),
-        '#default_value' => $form['#node']->auto_opengraph_fb_page,
+        '#description' => t('Select this to create a full facebook "page" if a facebook account or application id is known.
+                  Note that a lot of content may not be suitable as a full facebook "page".  Users who "like" a "page" will have
+                  that page appear in their "likes" section on the profile, and receive updates from that "page".'),
+        '#default_value' => $form['#node']->auto_opengraph['auto_opengraph_fb_page'],
       );
     }
     if (is_array($form['auto_opengraph'])) {
@@ -51,6 +53,7 @@ function auto_opengraph_form_alter(&$form, $form_state, $form_id) {
       $form['auto_opengraph']['#title'] = t('Facebook');
       $form['auto_opengraph']['#collapsible'] = TRUE;
       $form['auto_opengraph']['#collapsed'] = TRUE;
+      $form['auto_opengraph']['#tree'] = TRUE;
     }
   }
 }
@@ -58,27 +61,33 @@ function auto_opengraph_form_alter(&$form, $form_state, $form_id) {
 function auto_opengraph_nodeapi(&$node, $op, $a3, $a4) {
   switch ($op) {
     case 'load':
-    case 'prepare':
-      if ($row = db_fetch_array(db_query("SELECT auto_opengraph_type, auto_opengraph_fb_page FROM {auto_opengraph} WHERE nid = %d", $node->nid))) { // intentional assignment of $row
-        $node->auto_opengraph_type = $row['auto_opengraph_type'];
+      if ($row = db_fetch_array(db_query("SELECT * FROM {auto_opengraph} WHERE nid = %d", $node->nid))) { // intentional assignment of $row
+        $node->auto_opengraph = $row;
         $node->auto_opengraph_fb_page = $row['auto_opengraph_fb_page'];
+        $node->auto_opengraph_type = $row['auto_opengraph_type'];
       }
       break;
     case 'insert':
-      $record = array(
-        'nid' => $node->nid,
-        'auto_opengraph_type' => $node->auto_opengrpah_type,
-        'auto_opengraph_fb_page' => $node->auto_opengraph_fb_page,
-      );
-      drupal_write_record('auto_opengraph', $record);
+      if ($node->auto_opengraph['auto_opengraph_type'] || $node->auto_opengraph['auto_opengraph_fb_page']) {
+        $record = $node->auto_opengraph;
+        $record['nid'] = $node->nid;
+        drupal_write_record('auto_opengraph', $record);
+      }
       break;
     case 'update':
-      $record = array(
-        'nid' => $node->nid,
-        'auto_opengraph_type' => $node->auto_opengrpah_type,
-        'auto_opengraph_fb_page' => $node->auto_opengraph_fb_page,
-      );
-      drupal_write_record('auto_opengraph', $record, 'nid');
+      if ($node->auto_opengraph['ogid']) {
+        if ($node->auto_opengraph['auto_opengraph_type'] || $node->auto_opengraph['auto_opengraph_fb_page']) {
+          drupal_write_record('auto_opengraph', $node->auto_opengraph, 'ogid');
+        }
+        else {
+          db_query("DELETE FROM {auto_opengraph} WHERE ogid = %d", $node->auto_opengraph['ogid']);
+        }
+      }
+      elseif ($node->auto_opengraph['auto_opengraph_type'] || $node->auto_opengraph['auto_opengraph_fb_page']) {
+        $record = $node->auto_opengraph;
+        $record['nid'] = $node->nid;
+        drupal_write_record('auto_opengraph', $record);
+      }
       break;
     case 'delete':
       db_query("DELETE FROM {auto_opengraph} WHERE nid = %d", $node->nid);
@@ -113,7 +122,7 @@ function auto_opengraph_theme() {
   }
 
   // Other fields
-  foreach (array('teaser', 'body', 'locations', 'taxonomy') as $field) {
+  foreach (array('teaser', 'body', 'locations', 'taxonomy', 'auto_opengraph_type') as $field) {
     $ret["auto_opengraph_node_{$field}_value"] = array(
       'file' => 'auto_opengraph.theme.inc',
       'arguments' => array(
@@ -126,6 +135,10 @@ function auto_opengraph_theme() {
 
   return $ret;
 
+}
+
+function auto_opengraph_perm() {
+  return array('administer opengraph for facebook', 'set facebook page status on nodes');
 }
 
 function auto_opengraph_imagecache_actions() {
@@ -185,8 +198,10 @@ function auto_opengraph_preprocess_page(&$vars) {
       if ($vars['node']->path) $og['url'] = url($vars['node']->path, array('absolute' => TRUE)); // get the node url
 
       foreach(array_reverse(auto_opengraph_properties()) as $property => $section) { // the order in which properties are added is reversed, because defaults are added only if a property has no value
-        if (!$section || !is_numeric($sections[$section] = variable_get("auto_opengraph_node_item_{$vars['node']->type}_add_$section", FALSE))) { // sections have five settings, the numeric ones are 0 for disabled and 1 for defaults only
-          if ($field = explode('|', variable_get("auto_opengraph_node_field_$property", FALSE))) { // each field may have arguments separated by a | character
+        $sections[$section] = variable_get("auto_opengraph_node_item_{$vars['node']->type}_add_$section", FALSE);
+        if (!$section || (!is_numeric($sections[$section]) && ($sections[$section] != 'choose' || $vars['node']->auto_opengraph_fb_page))) { // sections have five settings, the numeric ones are 0 for disabled and 1 for defaults only
+          if (!$field = variable_get("auto_opengraph_node_item_{$vars['node']->type}_field_$property", FALSE)) $field = variable_get("auto_opengraph_node_field_$property", FALSE); // individual node types may have their own fields, especially for the "type" og property
+          if ($field = explode('|', $field)) { // each field may have arguments separated by a | character
             if (!empty($vars['node']->{$field[0]})) { // only continue if the field has a value
               $field_data = content_fields($field[0], $node->type); // for CCK fields, we get the field definition to determine the module
               if (!empty($field_data['widget'])) { // this is a CCK field
@@ -205,21 +220,6 @@ function auto_opengraph_preprocess_page(&$vars) {
           }
         }
       }
-
-      // This whole section is specifically to determine the opengraph type for each individual node type.
-      if ($field = variable_get("auto_opengraph_node_item_{$vars['node']->type}_og_type_field", FALSE)) {
-        $field_data = content_fields($field[0], $node->type);
-        if (!empty($field_data['widget'])) {
-          if ($value = theme("auto_opengraph_widget_{$field_data['widget']['module']}_value", $vars['node']->{$field[0]}, 'type', $field_data['widget']['type'])) { // intentional assingment of $value
-            $og['type'] = $value;
-          }
-        }
-        else {
-          if ($value = theme("auto_opengraph_node_{$field[0]}_value", $vars['node'], 'type', $field)) { // intentional assignment of $value
-            $og['type'] = $value;
-          }
-        }
-      } // end opengraph type specific code
 
       break;
 
