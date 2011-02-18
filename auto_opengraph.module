@@ -75,18 +75,19 @@ function auto_opengraph_nodeapi(&$node, $op, $a3, $a4) {
       }
       break;
     case 'update':
-      if ($node->auto_opengraph['ogid']) {
-        if ($node->auto_opengraph['auto_opengraph_type'] || $node->auto_opengraph['auto_opengraph_fb_page']) {
+      if ($node->auto_opengraph['auto_opengraph_type'] || $node->auto_opengraph['auto_opengraph_fb_page']) {
+        if ($ogid = db_result(db_query("SELECT ogid FROM {auto_opengraph} WHERE nid = %d", $node->nid))) { // intentional assignment of $ogid
+          $node->auto_opengraph['ogid'] = $ogid;
           drupal_write_record('auto_opengraph', $node->auto_opengraph, 'ogid');
         }
         else {
-          db_query("DELETE FROM {auto_opengraph} WHERE ogid = %d", $node->auto_opengraph['ogid']);
+          $record = $node->auto_opengraph;
+          $record['nid'] = $node->nid;
+          drupal_write_record('auto_opengraph', $record);
         }
       }
-      elseif ($node->auto_opengraph['auto_opengraph_type'] || $node->auto_opengraph['auto_opengraph_fb_page']) {
-        $record = $node->auto_opengraph;
-        $record['nid'] = $node->nid;
-        drupal_write_record('auto_opengraph', $record);
+      else {
+        db_query("DELETE FROM {auto_opengraph} WHERE ogid = %d", $node->auto_opengraph['ogid']);
       }
       break;
     case 'delete':
