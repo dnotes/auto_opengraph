@@ -70,7 +70,7 @@ function location_auto_opengraph_fields($object) {
 function taxonomy_auto_opengraph_fields($object) {
   if (module_exists('taxonomy')) {
     switch($object) {
-      case 'node':
+      case 'node':  // all the fields that should appear on a node
         foreach (taxonomy_get_vocabularies() as $voc) {
           $ret["taxonomy|{$voc->vid}|single"] = array(
             'title' => "Taxonomy: $voc->name (one term only)",
@@ -83,7 +83,10 @@ function taxonomy_auto_opengraph_fields($object) {
         }
         return $ret;
         break;
-    }
+      case 'taxonomy': // all the fields that should appear on a taxonomy term
+        break;
+
+      }
   }
 }
 

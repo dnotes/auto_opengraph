@@ -284,6 +284,7 @@ function auto_opengraph_preprocess_page(&$vars) {
 
   if (!empty($og)) {
     foreach ($og as $property => $value) {
+      if (in_array($property, array('url', 'image', 'video', 'audio'))) { $value = url($value, array('absolute' => TRUE)); }
       if (!in_array($property, array('fb:admins', 'fb:app_id'))) { $property = "og:$property"; }
       drupal_set_html_head('<meta property="' . check_plain($property) . '" content="' . str_replace('"', "'", strip_tags($value)) . '" />');
     }
