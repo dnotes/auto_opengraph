@@ -8,10 +8,10 @@
 
 function theme_auto_opengraph_image($image) {
   if ($preset = variable_get('auto_opengraph_imagecache_preset', FALSE)) { // intentional assignment of $preset
-    return check_url(url(file_directory_path() . "/imagecache/$preset/$image", array('absolute' => TRUE)));
+    return check_url(url("imagecache/$preset/$image", array('absolute' => TRUE)));
   }
   else {
-    return check_url(url(file_directory_path() . "/$image", array('absolute' => TRUE)));
+    return check_url(url("$image", array('absolute' => TRUE)));
   }
 }
 
@@ -28,11 +28,11 @@ function theme_auto_opengraph_widget_optionwidgets_value($data, $property, $widg
 }
 
 function theme_auto_opengraph_widget_filefield_value($data, $property, $widget = NULL) {
-  return $data[0]['filepath'];
+  return file_directory_path() . '/' . $data[0]['filepath'];
 }
 
 function theme_auto_opengraph_widget_imagefield_value($data, $property, $widget = NULL) {
-  return $data[0]['filepath'];
+  return file_directory_path() . '/' . $data[0]['filepath'];
 }
 
 function theme_auto_opengraph_widget_emvideo_value($data, $property, $widget = NULL) {
