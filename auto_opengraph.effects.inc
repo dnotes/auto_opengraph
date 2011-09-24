@@ -6,6 +6,18 @@
  *
  */
 
+
+function auto_opengraph_image_effect_info() {
+  $effects['aspect_ratio_crop'] = array(
+    'label' => t('Aspect Crop'),
+    'help' => t('Crop an image to an aspect ratio.'),
+    'effect callback' => 'auto_opengraph_crop_effect',
+    'form callback' => 'auto_opengraph_crop_form',
+    'summary theme' => 'auto_opengraph_crop_summary',
+  );
+  return $effects;
+}
+
 function theme_auto_opengraph_crop($element) {
   $data = $element['#value'];
   return t('@aspect @fit@reversible', array('@fit' => t($data['fit']), '@aspect' => $data['aspect'], '@reversible' => ($data['reversible'] ? t(', or the reverse') : '')));
@@ -41,7 +53,7 @@ function auto_opengraph_crop_form($data = array()) {
   return $form;
 }
 
-function auto_opengraph_crop_image(&$image, $data) {
+function auto_opengraph_crop_effect(&$image, $data) {
 
   // opengraph images on facebook are required to be 50x50 or larger.
   if ($image->info['height'] < 50 || $image->info['width'] < 50) {

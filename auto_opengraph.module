@@ -96,10 +96,14 @@ function auto_opengraph_nodeapi(&$node, $op, $a3, $a4) {
   }
 }
 
+/**
+ * Implements hook_theme().
+ * @return array 
+ */
 function auto_opengraph_theme() {
   $ret = array(
     'auto_opengraph_crop' => array(
-      'file' => 'auto_opengraph.imagecache.inc',
+      'file' => 'auto_opengraph.effects.inc',
       'arguments' => array('element' => NULL),
     ),
     'auto_opengraph_image' => array(
@@ -140,16 +144,6 @@ function auto_opengraph_theme() {
 
 function auto_opengraph_perm() {
   return array('administer opengraph for facebook', 'set facebook page status on nodes');
-}
-
-function auto_opengraph_imagecache_actions() {
-  return array(
-    'auto_opengraph_crop' => array(
-      'name' => 'Aspect Crop',
-      'description' => 'Crop an image to an aspect ratio.',
-      'file' => 'auto_opengraph.imagecache.inc',
-    ),
-  );
 }
 
 function auto_opengraph_set($property = NULL, $value = NULL) {
