@@ -45,42 +45,8 @@ function auto_opengraph_schema() {
   return $schema;
 }
 
-function auto_opengraph_install() {
-  drupal_install_schema('auto_opengraph');
-  if (module_exists('imagecache')) {
-    if (!$preset = imagecache_preset_by_name('opengraph_thumbnail')) {
-      $preset = imagecache_preset_save(array('presetname' => 'opengraph_thumbnail'));
-      $action = array(
-        'action' => 'auto_opengraph_crop',
-        'presetid' => $preset['presetid'],
-        'data' => array(
-          'aspect' => '3:1',
-          'fit' => 'max',
-          'reversible' => 1,
-        ),
-        'weight' => 0,
-      );
-      imagecache_action_save($action);
-      $action = array(
-        'action' => 'imagecache_scale',
-        'presetid' => $preset['presetid'],
-        'data' => array(
-          'width' => "300",
-          'height' => "300",
-          'upscale' => 0,
-        ),
-        'weight' => 1,
-      );
-      imagecache_action_save($action);
-    }
-    variable_set('auto_opengraph_imagecache_preset', 'opengraph_thumbnail');
-  }
-  else {
-    variable_set('auto_opengraph_imagecache_preset', 0);
-  }
-}
-
 function auto_opengraph_uninstall() {
-  drupal_uninstall_schema('auto_opengraph');
-  db_query("DELETE FROM {variable} WHERE name LIKE 'auto_opengraph_%'");
+  db_delete('variable')
+    ->condition('name', 'auto_opengraph_%', 'LIKE')
+    ->execute();
 }

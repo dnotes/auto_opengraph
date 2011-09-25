@@ -1,7 +1,7 @@
 <?php
 
 function auto_opengraph_menu() {
-  $items['admin/settings/auto-opengraph'] = array(
+  $items['admin/config/content/auto-opengraph'] = array(
     'title' => t('Auto Opengraph'),
     'description' => t('Manages creation of opengraph tags for facebook.'),
     'page callback' => 'drupal_get_form',
@@ -13,48 +13,30 @@ function auto_opengraph_menu() {
   return $items; 
 }
 
-function auto_opengraph_form_alter(&$form, $form_state, $form_id) {
-  if ($form_id == 'node_type_form' && isset($form['identity']['type'])) {
+function auto_opengraph_form_alter(&$form, &$form_state, $form_id) {
+  if ($form_id == 'node_type_form') {
     include_once drupal_get_path('module', 'auto_opengraph') . '/auto_opengraph.admin.inc';
     $form['auto_opengraph'] = array(
       '#type' => 'fieldset',
       '#title' => t('Facebook / OpenGraph'),
       '#collapsible' => TRUE,
       '#collapsed' => TRUE,
+      '#group' => 'additional_settings'
+    );
+    $form['auto_opengraph']['token_help'] = array(
+      '#title' => t('Replacement patterns'),
+      '#theme' => 'token_tree',
+      '#token_types' => array('node'),
     );
     $all_properties = auto_opengraph_properties();
-    foreach ($all_properties as $property => $section) { $og[$property] = array(); }
+    foreach ($all_properties as $property => $section) { 
+      $form['auto_opengraph'][$property] = array(
+        '#type' => 'textfield',
+        '#title' => t($property),
+        '#size' => 30,
+      );
+    }
     _auto_opengraph_settings_form_get_fields('node', $og);
-    $form['auto_opengraph'] = array_merge($form['auto_opengraph'], _auto_opengraph_settings_form_get_section_settings('node_item_' . $form['identity']['type'], $og));
-  }
-  elseif (isset($form['type']) && isset($form['#node'])) {
-    if (variable_get("auto_opengraph_node_field_type", FALSE) == 'auto_opengraph_type' ||
-        variable_get("auto_opengraph_node_item_{$form['#node']->type}_og_type_field", FALSE) == 'auto_opengraph_type') {
-      $form['auto_opengraph']['auto_opengraph_type'] = array(
-        '#type' => 'select',
-        '#title' => t('Opengraph type'),
-        '#options' => array_merge(array(0 => t('- use default -')), auto_opengraph_types()),
-        '#description' => t('Facebook pages only recognize certain types of real word objects.  See <a href="http://developers.facebook.com/docs/opengraph">the opengraph doc page</a> for reference.'),
-        '#default_value' => $form['#node']->auto_opengraph['auto_opengraph_type'],
-      );
-    }
-    if (variable_get("auto_opengraph_node_item_{$form['#node']->type}_add_fb", FALSE) == 'choose' && user_access('set facebook page status on nodes')) {
-      $form['auto_opengraph']['auto_opengraph_fb_page'] = array(
-        '#type' => 'checkbox',
-        '#title' => t('Create a facebook page'),
-        '#description' => t('Select this to create a full facebook "page" if a facebook account or application id is known.
-                  Note that a lot of content may not be suitable as a full facebook "page".  Users who "like" a "page" will have
-                  that page appear in their "likes" section on the profile, and receive updates from that "page".'),
-        '#default_value' => $form['#node']->auto_opengraph['auto_opengraph_fb_page'],
-      );
-    }
-    if (is_array($form['auto_opengraph'])) {
-      $form['auto_opengraph']['#type'] = 'fieldset';
-      $form['auto_opengraph']['#title'] = t('Facebook');
-      $form['auto_opengraph']['#collapsible'] = TRUE;
-      $form['auto_opengraph']['#collapsed'] = TRUE;
-      $form['auto_opengraph']['#tree'] = TRUE;
-    }
   }
 }
 
@@ -102,13 +84,12 @@ function auto_opengraph_nodeapi(&$node, $op, $a3, $a4) {
  */
 function auto_opengraph_theme() {
   $ret = array(
-    'auto_opengraph_crop' => array(
-      'file' => 'auto_opengraph.effects.inc',
-      'arguments' => array('element' => NULL),
+    'auto_opengraph_crop_summary' => array(
+      'variables' => array('data' => NULL),
     ),
     'auto_opengraph_image' => array(
       'file' => 'auto_opengraph.theme.inc',
-      'arguments' => array('image' => NULL),
+      'variables' => array('image' => NULL),
     ),
   );
 
@@ -117,7 +98,7 @@ function auto_opengraph_theme() {
     if (module_exists($module)) {
       $ret["auto_opengraph_widget_{$module}_value"] = array(
         'file' => 'auto_opengraph.theme.inc',
-        'arguments' => array(
+        'variables' => array(
           'data' => NULL,
           'property' => NULL,
           'widget' => NULL,
@@ -130,7 +111,7 @@ function auto_opengraph_theme() {
   foreach (array('teaser', 'body', 'locations', 'taxonomy', 'auto_opengraph_type') as $field) {
     $ret["auto_opengraph_node_{$field}_value"] = array(
       'file' => 'auto_opengraph.theme.inc',
-      'arguments' => array(
+      'variables' => array(
         'data' => NULL,
         'property' => NULL,
         'field' => NULL,
@@ -140,10 +121,6 @@ function auto_opengraph_theme() {
 
   return $ret;
 
-}
-
-function auto_opengraph_perm() {
-  return array('administer opengraph for facebook', 'set facebook page status on nodes');
 }
 
 function auto_opengraph_set($property = NULL, $value = NULL) {
@@ -280,7 +257,7 @@ function auto_opengraph_preprocess_page(&$vars) {
     foreach ($og as $property => $value) {
       if (in_array($property, array('url', 'image', 'video', 'audio'))) { $value = url($value, array('absolute' => TRUE)); }
       if (!in_array($property, array('fb:admins', 'fb:app_id'))) { $property = "og:$property"; }
-      drupal_set_html_head('<meta property="' . check_plain($property) . '" content="' . str_replace('"', "'", strip_tags($value)) . '" />');
+      drupal_add_html_head('<meta property="' . check_plain($property) . '" content="' . str_replace('"', "'", strip_tags($value)) . '" />');
     }
     $vars['head'] = drupal_get_html_head();
   }
@@ -397,3 +374,184 @@ function auto_opengraph_properties() {
 
   );
 }
+
+// IMAGE STYLES / EFFECTS
+
+/**
+* Implements hook_image_default_styles().
+*/
+function auto_opengraph_image_default_styles() {
+  $styles = array();
+  $styles['opengraph'] = array(
+    'effects' => array(
+      array(
+        'name' => 'auto_opengraph_crop',
+        'data' => array(
+          'aspect' => '3:1',
+          'fit' => 'max',
+          'reversible' => 1,
+        ),
+        'weight' => 0,
+      ),
+      array(
+        'name' => 'image_scale',
+        'data' => array(
+          'width' => "300",
+          'height' => "300",
+          'upscale' => 0,
+        ),
+        'weight' => 1,
+      ),
+    ),
+  );
+  return $styles;
+}
+
+/**
+ * Implements hook_image_effect_info().
+ */
+function auto_opengraph_image_effect_info() {
+  $effects['auto_opengraph_crop'] = array(
+    'label' => t('Aspect Crop'),
+    'help' => t('Crop an image to an aspect ratio.'),
+    'effect callback' => 'auto_opengraph_crop_effect',
+    'form callback' => 'auto_opengraph_crop_form',
+    'summary theme' => 'auto_opengraph_crop_summary',
+  );
+  return $effects;
+}
+
+/**
+ * HTML for aspect crop action summary on image style page.
+ *
+ * @ingroup themeable
+ *
+ * @param array $variables
+ *   An array with the single key of 'data', which contains the data for the
+ *   image effect.
+ *
+ * @return string
+ *   HTML output for the display of aspect crop settings.
+ */
+function theme_auto_opengraph_crop_summary($variables) {
+  $data = $variables['data'];
+  return t('@aspect @fit@reversible', array('@fit' => t($data['fit']), '@aspect' => $data['aspect'], '@reversible' => ($data['reversible'] ? t(', or the reverse') : '')));
+}
+
+/**
+ * Form builder for the aspect crop image effect.
+ *
+ * @param array $data
+ *
+ * @return array the form array.
+ */
+function auto_opengraph_crop_form($data = array()) {
+  $form['aspect'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Aspect ratio'),
+    '#default_value' => isset($data['aspect']) ? $data['aspect'] : NULL,
+    '#description' => t('An aspect ratio in the format width:height (e.g. 4:3)'),
+    '#size' => 10,
+  );
+  $form['fit'] = array(
+    '#type' => 'select',
+    '#title' => t('Fit'),
+    '#options' => array('max' => t('Maximum'), 'min' => t('Minimum'), 'exact' => t('Exact')),
+    '#default_value' => isset($data['fit']) ? $data['fit'] : 'exact',
+    '#description' => t('"Maximum" and "minimum" relate to the highest number of the ratio; for example,
+                a maximum ratio of 3:4 will result in an image of 300x500px being cropped down to 300x400,
+                even though 3:4 is technically greater than 3:5.
+                An image with a minimum ratio of 1:1 will never be affected.')
+  );
+  $form['reversible'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('or the reverse'),
+    '#default_value' => isset($data['reversible']) ? $data['reversible'] : NULL,
+    '#description' => t('i.e. for a value of 3:1, wide pictures would use 3:1 and tall pictures would use 1:3.')
+  );
+  $form['note'] = array( // opengraph images on facebook are required to be 50x50 or larger.
+    '#markup' => '<p>' . t('Note: since this preset was designed for use with opengraph media, it automatically enlarges images with height or width less than 50px.') . '</p>'
+  );
+  return $form;
+}
+
+/**
+ * Effect handler for aspect crop image effect.
+ *
+ * @param array $image
+ *   the image array.
+ *
+ * @param array $data
+ *   the data array.
+ *
+ * @return boolean
+ *   Success indicator; true if the effect succeeded.
+ */
+function auto_opengraph_crop_effect(&$image, $data) {
+
+  // opengraph images on facebook are required to be 50x50 or larger.
+  if ($image->info['height'] < 50 || $image->info['width'] < 50) {
+    $known = $image->info['height'] < $image->info['width'] ? 'height' : 'width';
+    $unknown = $known == 'height' ? 'width' : 'height';
+    $new[$known] = 50;
+    $new[$unknown] = (50 * $image->info[$unknown]) / $image->info[$known];
+    if (!image_scale($image, $new['width'], $new['height'], TRUE)) {
+      watchdog('imagecache', 'auto_opengraph_imagecache_crop failed to scale up to 50px. image: %image, data: %data.', array('%image' => $image->source, '%data' => print_r($data, TRUE)), WATCHDOG_ERROR);
+      return FALSE;
+    }
+  }
+  // end opengraph-specific code
+
+  list($width, $height) = explode(':', $data['aspect']);
+  $desired = $height / $width;
+  $current = $image->info['height'] / $image->info['width'];
+  if ($data['reversible'] && (($desired < 1 && $current > 1) || ($desired > 1 && $current < 1))) {
+    $temp = $height;
+    $height = $width;
+    $width = $temp;
+    $desired = $height / $width;
+  }
+
+  if ($current == $desired) return TRUE; // if the image is EXACTLY right, don't do anything.
+
+  if ($desired < 1) {
+    $wide = TRUE;
+  }
+  elseif ($desired > 1) {
+    $tall = TRUE;
+  }
+  else {
+    $square = TRUE;
+  }
+
+  $min = $data['fit'] == 'min';
+  $max = $data['fit'] == 'max';
+
+  if ($max && $tall && ($current < $desired)) return TRUE;
+  if ($min && $tall && ($current > $desired)) return TRUE;
+  if ($max && $wide && ($current > $desired)) return TRUE;
+  if ($min && $wide && ($current < $desired)) return TRUE;
+  if ($square && $min) return TRUE; // images with a minimum ratio of 1:1 will never be processed.
+
+  $min = ($min || $data['fit'] == 'exact');
+  $max = ($max || $data['fit'] == 'exact');
+
+  // Trim the side
+  if (($wide && $max) || ($tall && $min) || ($square && $max)) {
+    $h = $image->info['height'];
+    $w = round(($h / $height) * $width);
+  }
+
+  // Trim the bottom
+  else {
+    $w = $image->info['width'];
+    $h = round(($w / $width) * $height);
+  }
+
+  if(!image_crop($image, 'center', 'center', $w, $h)) {
+    watchdog('imagecache', 'auto_opengraph_imagecache_crop failed. image: %image, data: %data.', array('%image' => $image->source, '%data' => print_r($data, TRUE)), WATCHDOG_ERROR);
+    return FALSE;
+  }
+  return TRUE;
+}
+
