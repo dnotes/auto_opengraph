@@ -1,5 +1,8 @@
 <?php
 
+/**
+ * Implements hook_menu().
+ */
 function auto_opengraph_menu() {
   $items['admin/config/content/auto-opengraph'] = array(
     'title' => t('Auto Opengraph'),
@@ -11,71 +14,6 @@ function auto_opengraph_menu() {
     'file' => 'auto_opengraph.admin.inc',
   );
   return $items; 
-}
-
-function auto_opengraph_form_alter(&$form, &$form_state, $form_id) {
-  if ($form_id == 'node_type_form') {
-    include_once drupal_get_path('module', 'auto_opengraph') . '/auto_opengraph.admin.inc';
-    $form['auto_opengraph'] = array(
-      '#type' => 'fieldset',
-      '#title' => t('Facebook / OpenGraph'),
-      '#collapsible' => TRUE,
-      '#collapsed' => TRUE,
-      '#group' => 'additional_settings'
-    );
-    $form['auto_opengraph']['token_help'] = array(
-      '#title' => t('Replacement patterns'),
-      '#theme' => 'token_tree',
-      '#token_types' => array('node'),
-    );
-    $all_properties = auto_opengraph_properties();
-    foreach ($all_properties as $property => $section) { 
-      $form['auto_opengraph'][$property] = array(
-        '#type' => 'textfield',
-        '#title' => t($property),
-        '#size' => 30,
-      );
-    }
-    _auto_opengraph_settings_form_get_fields('node', $og);
-  }
-}
-
-function auto_opengraph_nodeapi(&$node, $op, $a3, $a4) {
-  switch ($op) {
-    case 'load':
-      if ($row = db_fetch_array(db_query("SELECT * FROM {auto_opengraph} WHERE nid = %d", $node->nid))) { // intentional assignment of $row
-        $node->auto_opengraph = $row;
-        $node->auto_opengraph_fb_page = $row['auto_opengraph_fb_page'];
-        $node->auto_opengraph_type = $row['auto_opengraph_type'];
-      }
-      break;
-    case 'insert':
-      if ($node->auto_opengraph['auto_opengraph_type'] || $node->auto_opengraph['auto_opengraph_fb_page']) {
-        $record = $node->auto_opengraph;
-        $record['nid'] = $node->nid;
-        drupal_write_record('auto_opengraph', $record);
-      }
-      break;
-    case 'update':
-      if ($node->auto_opengraph['auto_opengraph_type'] || $node->auto_opengraph['auto_opengraph_fb_page']) {
-        if ($ogid = db_result(db_query("SELECT ogid FROM {auto_opengraph} WHERE nid = %d", $node->nid))) { // intentional assignment of $ogid
-          $node->auto_opengraph['ogid'] = $ogid;
-          drupal_write_record('auto_opengraph', $node->auto_opengraph, 'ogid');
-        }
-        else {
-          $record = $node->auto_opengraph;
-          $record['nid'] = $node->nid;
-          drupal_write_record('auto_opengraph', $record);
-        }
-      }
-      else {
-        db_query("DELETE FROM {auto_opengraph} WHERE ogid = %d", $node->auto_opengraph['ogid']);
-      }
-      break;
-    case 'delete':
-      db_query("DELETE FROM {auto_opengraph} WHERE nid = %d", $node->nid);
-      break;
-  }
 }
 
 /**
@@ -92,288 +30,141 @@ function auto_opengraph_theme() {
       'variables' => array('image' => NULL),
     ),
   );
-
-  // CCK fields
-  foreach (array('text', 'number', 'optionwidgets', 'filefield', 'imagefield', 'emvideo', 'emaudio', 'emimage') as $module) {
-    if (module_exists($module)) {
-      $ret["auto_opengraph_widget_{$module}_value"] = array(
-        'file' => 'auto_opengraph.theme.inc',
-        'variables' => array(
-          'data' => NULL,
-          'property' => NULL,
-          'widget' => NULL,
-        )
-      );
-    }
-  }
-
-  // Other fields
-  foreach (array('teaser', 'body', 'locations', 'taxonomy', 'auto_opengraph_type') as $field) {
-    $ret["auto_opengraph_node_{$field}_value"] = array(
-      'file' => 'auto_opengraph.theme.inc',
-      'variables' => array(
-        'data' => NULL,
-        'property' => NULL,
-        'field' => NULL,
-      )
-    );
-  }
-
   return $ret;
-
 }
 
-function auto_opengraph_set($property = NULL, $value = NULL) {
-  static $og;
-
-  if (is_null($property)) {
-    if (is_array($og)) {
-      return $og;
-    }
-    else {
-      $og = array();
-      return $og;
-    }
+function _auto_opengraph_get_tags($type = NULL, $bundle = NULL) {
+  $default = variable_get('auto_opengraph_tags_default', array(
+    'og:type' => 'article',
+    'og:url' => '[url:absolute]',              # defaults to the current url of the page
+    'og:site_name' => '[site:name]',        # in almost all cases the site_name should be automatic
+  ));
+  if (is_null($type) || $type == 'default') {
+    return $default;
   }
-
-  if ($property == 'all') {
-    if (is_array($value)) {
-      $og = array_merge($og, $value);
-      return $og;
-    }
-    return $og;
+  elseif ($type == 'front') {
+    return array_merge($default, variable_get("auto_opengraph_tags_front", array()));
   }
-
-  $og[$property] = $value;
-  return $og;
-
+  else {
+    $var = $bundle ? "$type:$bundle" : $type;
+    return array_merge($default, variable_get("auto_opengraph_tags-$var", array()));
+  }
 }
 
-function auto_opengraph_preprocess_page(&$vars) {
-
-  $arg = arg(0);
-  if ($arg == 'admin') return;
-  if (variable_get('auto_opengraph_disable_for_tabs', TRUE) && arg(2) && ($arg == 'node' || $arg == 'user')) return;
-  $arg = in_array($arg, array('node', 'user', 'taxonomy')) ? $arg : 'other';
-  if (!variable_get("auto_opengraph_$arg", TRUE)) return;
-
-  $og = auto_opengraph_set();
-  switch ($arg) {
-
-    case 'node':
-
-      // nodes are a little different than other objects, because
-      // opengraph settings can be different for each type of node
-
-      if (!variable_get("auto_opengraph_node_item_{$vars['node']->type}", TRUE)) return; // don't set opengraph headers if they are not enabled for the content type
-
-      if ($vars['node']->path) $og['url'] = url($vars['node']->path, array('absolute' => TRUE)); // get the node url
-
-      foreach(array_reverse(auto_opengraph_properties()) as $property => $section) { // the order in which properties are added is reversed, because defaults are added only if a property has no value
-        $sections[$section] = variable_get("auto_opengraph_node_item_{$vars['node']->type}_add_$section", FALSE);
-        if (!$section || (!is_numeric($sections[$section]) && ($sections[$section] != 'choose' || $vars['node']->auto_opengraph_fb_page))) { // sections have five settings, the numeric ones are 0 for disabled and 1 for defaults only
-          if (!$field = variable_get("auto_opengraph_node_item_{$vars['node']->type}_field_$property", FALSE)) $field = variable_get("auto_opengraph_node_field_$property", FALSE); // individual node types may have their own fields, especially for the "type" og property
-          if ($field = explode('|', $field)) { // each field may have arguments separated by a | character
-            if (!empty($vars['node']->{$field[0]})) { // only continue if the field has a value
-              $field_data = content_fields($field[0], $node->type); // for CCK fields, we get the field definition to determine the module
-              if (!empty($field_data['widget'])) { // this is a CCK field
-                if ($value = theme("auto_opengraph_widget_{$field_data['widget']['module']}_value", $vars['node']->{$field[0]}, $property, $field_data['widget']['type'])) { // for the theme_widget calls, we pass only the field itself; for all other theme calls, we pass the entire object.
-                  $og[$property] = $value;
-                  if ($sections[$section] == 'all') $sections[$section] = 'fields'; // if the section is set to override all values if only a single property is set
-                }
-              }
-              else { // this is a module-defined "field", which may be any property of the node object
-                if ($value = theme("auto_opengraph_node_{$field[0]}_value", $vars['node'], $property, $field)) { // intentional assignment of $value
-                  $og[$property] = $value;
-                  if ($sections[$section] == 'all') $sections[$section] = 'fields'; // if the section is set to override all values if only a single property is set
-                }
-              }
-            }
-          }
-        }
-      }
-
-      break;
-
-    case 'user': // for users, we pass the user object as data
-      $data = user_load(arg(1));
-      break;
-
-    case 'taxonomy': // for taxonomy term pages, we pass an array of all taxonomy terms as data
-      $data = array();
-      $terms = taxonomy_terms_parse_string(arg(3));
-      if ($terms['operator'] == 'or' || $terms['operator'] == 'and') {
-        foreach ($terms['tids'] as $tid) {
-          $data[$tid] = taxonomy_get_term($tid);
-        }
-      }
-      break;
-
-    default: // for all other pages, we pass the array of page $vars as data
-      $data = $vars;
-      break;
-  }
-  
-  if ($arg != 'node') { // for non-node pages, we don't need the content types, so they can be lumped together.
-    foreach (array_reverse(auto_opengraph_properties()) as $property => $section) { // the order in which properties are added is reversed, because defaults are added only if a property has no value
-      if (!$section || !is_numeric($sections[$section] = variable_get("auto_opengraph_{$arg}_add_$section", FALSE))) { // sections have five settings, the numeric ones are 0 for disabled and 1 for defaults only
-        if ($field = explode('|', variable_get("auto_opengraph_{$arg}_field_$property", FALSE))) { // intentional assignments of $field
-          if ($value = theme("auto_opengraph_{$arg}_{$field[0]}_value", $data, $property, $field)) { // intentional assignment of $value
-            $og[$property] = $value;
-            if ($sections[$section] == 'all') $sections[$section] = 'fields'; // if the section is set to override all values if only a single property is set
-          }
-        }
+function auto_opengraph_form($type = NULL, $bundle = NULL, $fieldset = NULL) {
+  $tags = _auto_opengraph_get_tags($type, $bundle);
+  $Basic = array(
+    'og:title',            # defaults to the page title
+    'og:type',
+    'og:url',              # defaults to the current url of the page
+    'og:image',
+    'fb:admins',
+    'fb:app_id',
+    'og:site_name',        # in almost all cases the site_name should be automatic
+    'og:description',
+  );
+  $Advanced = array(
+    // Multimedia
+    'og:audio',
+    'og:audio:title',
+    'og:audio:artist',
+    'og:audio:album',
+    'og:audio:type',
+    'og:video',
+    'og:video:height',
+    'og:video:width',
+    'og:video:type',
+    // Location
+    'og:latitude',
+    'og:longitude',
+    'og:street-address',
+    'og:locality',
+    'og:region',
+    'og:postal-code',
+    'og:country-name',
+    // Contact
+    'og:email',
+    'og:phone_number',
+    'og:fax_number',
+  );
+  $Custom = array(); // TODO: implement custom fields?
+  foreach (array('Basic', 'Advanced', 'Custom') as $category) {
+    if (count($$category)) {
+      $form[$category] = array(
+        '#type' => 'fieldset',
+        '#title' => t($category),
+        '#collapsible' => $category != 'Basic',
+        '#collapsed' => $category != 'Basic',
+      );
+      foreach ($$category as $field) {
+        $form[$category][$field] = array(
+          '#type' => 'textfield',
+          '#title' => preg_replace('/(og:|fb:)/', '', $field),
+          '#default_value' => $tags[$field],
+        );
       }
     }
   }
-
-  $temp = ($arg == 'node') ? "node_item_{$vars['node']->type}" : $arg; // from now on, we need to deal with the node types and other object types
-
-  if (!$og['type'] && ($type = variable_get("auto_opengraph_{$temp}_og_type", FALSE))) { // set the default type if one is not already set
-    $og['type'] = $type;
-  }
-
-  if ($vars['is_front'] && variable_get('auto_opengraph_front_page', TRUE)) {
-    $og['type'] = variable_get('auto_opengraph_site_type', 'website');
-    $og['url'] = url('', array('absolute' => TRUE));
-    foreach(array('image', 'fb:admins', 'fb:app_id') as $property) {
-      if ($value = variable_get("auto_opengraph_default_$property", '')) { // intentional assignment of $value
-        $og[$property] = $value;
-      }
-    }
-  }
-
-  _auto_opengraph_add('basic', $og); // add basic fields (will not overwrite existing values)
-  foreach (array('location', 'contact', 'fb') as $section) {
-    if ($sections[$section] && ($sections[$section] != 'fields')) {  // only add the section data if it is enabled for this page
-      _auto_opengraph_add($section, $og); // add sections (will not overwrite existing values)
-    }
-  }
-
-  if (!$og['url']) { $og['url'] = url(implode('/',arg()), array('absolute' => TRUE)); }
-  if (!$og['title']) { $og['title'] = $vars['head_title']; }
-
-  if (!empty($og)) {
-    foreach ($og as $property => $value) {
-      if (in_array($property, array('url', 'image', 'video', 'audio'))) { $value = url($value, array('absolute' => TRUE)); }
-      if (!in_array($property, array('fb:admins', 'fb:app_id'))) { $property = "og:$property"; }
-      drupal_add_html_head('<meta property="' . check_plain($property) . '" content="' . str_replace('"', "'", strip_tags($value)) . '" />');
-    }
-    $vars['head'] = drupal_get_html_head();
-  }
-
 }
 
-function _auto_opengraph_add($part, &$og) {
-  include_once('auto_opengraph.functions.inc');
-  if (function_exists($function = "_auto_opengraph_add_$part")) {
-    $function($og);
+function _auto_opengraph_map_entities() {
+  if (!$entity_types = cache_get('auto_opengraph:entity_types')) {
+    $test = new stdClass();
+    foreach (entity_get_info() as $entity_type => $info) {
+      if ($info['uri callback'] && function_exists($info['uri callback'])) {
+        $entity_types[$entity_type] = @call_user_func_array($info['uri callback'], array($test));
+      }
+    }
+    cache_set('auto_opengraph:entity_types', $entity_types);
   }
+  return is_array($entity_types) ? $entity_types : array();
 }
 
 function auto_opengraph_types() {
   $ret = array(
-    t('Activities') => array(
-      'activity' => t('activity'),
-      'sport' => t('sport'),
-    ),
-    t('Businesses') => array(
-      'bar' => t('bar'),
-      'company' => t('company'),
-      'cafe' => t('cafe'),
-      'hotel' => t('hotel'),
-      'restaurant' => t('restaurant'),
-    ),
-    t('Groups') => array(
-      'cause' => t('cause'),
-      'sports_league' => t('sports_league'),
-      'sports_team' => t('sports_team'),
-    ),
-    t('Organizations') => array(
-      'band' => t('band'),
-      'government' => t('government'),
-      'non_profit' => t('non_profit'),
-      'school' => t('school'),
-      'university' => t('university'),
-    ),
-    t('People') => array(
-      'actor' => t('actor'),
-      'athlete' => t('athlete'),
-      'author' => t('author'),
-      'director' => t('director'),
-      'musician' => t('musician'),
-      'politician' => t('politician'),
-      'public_figure' => t('public_figure'),
-    ),
-    t('Places') => array(
-      'city' => t('city'),
-      'country' => t('country'),
-      'landmark' => t('landmark'),
-      'state_province' => t('state_province'),
-    ),
-    t('Products and Entertainment') => array(
-      'album' => t('album'),
-      'book' => t('book'),
-      'drink' => t('drink'),
-      'food' => t('food'),
-      'game' => t('game'),
-      'product' => t('product'),
-      'song' => t('song'),
-      'movie' => t('movie'),
-      'tv_show' => t('tv_show'),
-    ),
-    t('Websites') => array(
-      'blog' => t('blog'),
-      'website' => t('website'),
-      'article' => t('article'),
-    ),
+    'activity',
+    'sport',
+    'bar',
+    'company',
+    'cafe',
+    'hotel',
+    'restaurant',
+    'cause',
+    'sports_league',
+    'sports_team',
+    'band',
+    'government',
+    'non_profit',
+    'school',
+    'university',
+    'actor',
+    'athlete',
+    'author',
+    'director',
+    'musician',
+    'politician',
+    'public_figure',
+    'city',
+    'country',
+    'landmark',
+    'state_province',
+    'album',
+    'book',
+    'drink',
+    'food',
+    'game',
+    'product',
+    'song',
+    'movie',
+    'tv_show',
+    'blog',
+    'website',
+    'article',
   );
   return $ret;
 }
 
-function auto_opengraph_properties() {
-  return array(
 
-    // basics
-    'site_name' => 0,        # in almost all cases the site_name should be automatic
-    'title' => 0,            # defaults to the page title
-    'url' => 0,              # defaults to the current url of the page
-    'type' => 0,
-    'description' => 0,
-    'image' => 0,
-
-    // facebook
-    'fb:admins' => 'fb',
-    'fb:app_id' => 'fb',
-
-    // multimedia
-    'audio' => 0,
-    'audio:title' => 0,      # optional
-    'audio:artist' => 0,     # optional
-    'audio:album' => 0,      # optional
-    'audio:type' => 0,       # optional
-
-    'video' => 0,
-    'video:height' => 0,     # optional
-    'video:width' => 0,      # optional
-    'video:type' => 0,       # optional
-
-    // Location (automatic if location module is used)
-    'latitude' => 'location',
-    'longitude' => 'location',
-    'street-address' => 'location',
-    'locality' => 'location',
-    'region' => 'location',
-    'postal-code' => 'location',
-    'country-name' => 'location',
-
-    // Contact
-    'email' => 'contact',
-    'phone_number' => 'contact',
-    'fax_number' => 'contact',
-
-  );
-}
 
 // IMAGE STYLES / EFFECTS
 

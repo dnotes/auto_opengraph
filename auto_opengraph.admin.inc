@@ -8,18 +8,53 @@
 
 function auto_opengraph_settings_form() {
 
-  include_once 'auto_opengraph.fields.inc';
+  $form['auto_opengraph_tags_default'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Default tags'),
+    '#tree' => TRUE,
+  );
+  $form['auto_opengraph_tags_default'] = array_merge($form['auto_opengraph_tags_default'], _auto_opengraph_form());
+  $form['auto_opengraph_tags_front'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Front page tags'),
+    '#tree' => TRUE,
+  );
+  $form['auto_opengraph_tags_front'] = array_merge($form['auto_opengraph_tags_front'], _auto_opengraph_form('front'));
 
-  $all_properties = auto_opengraph_properties();
-  foreach ($all_properties as $property => $section) { $og[$property] = array(); }
+  // TODO: add custom og:types
+  // TODO: add app namespace
 
-  foreach (array('settings', 'defaults', 'facebook', 'node', 'user', 'taxonomy', 'other') as $part) {
-    if (function_exists($function = "_auto_opengraph_settings_form_$part")) {
-      $form[$part] = call_user_func($function, $og);
+  // TODO: add custom fields?
+
+  $entity_types = array_keys(_auto_opengraph_map_entities());
+  $auto_opengraph_entity_types = variable_get('auto_opengraph_entity_types', array('node', 'taxonomy_term'));
+  $form['auto_opengraph_entity_types'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Auto opengraph entity types:'),
+    '#options' => $entity_types,
+    '#description' => t('Auto opengraph will manage og meta tags for all selected entity types.'),
+    '#default_value' => $auto_opengraph_entity_types,
+  );
+  foreach ($auto_opengraph_entity_types as $type) {
+    $name = ucfirst(str_replace('_', ' ', $type));
+    $form[$type] = array(
+      '#type' => 'fieldset',
+      '#title' => t($name),
+      '#collapsible' => TRUE,
+      '#collapsed' => TRUE,
+    );
+    $form[$type]["auto_opengraph_tags"] = 9;
+
+    // Form for each bundle
+    $info = entity_get_info($type);
+    if (count($info['bundles']) > 1) {
+      foreach ($info['bundles'] as $bundle) {
+
+      }
     }
+
   }
 
-  return system_settings_form($form);
 }
 
 function _auto_opengraph_settings_form_settings() {
