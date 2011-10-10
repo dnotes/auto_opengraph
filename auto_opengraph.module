@@ -218,14 +218,30 @@ function auto_opengraph_preprocess_page($vars) {
     }
   }
   if ($tags) {
+    if (variable_get('auto_opengraph_style_images', TRUE)) {
+      $value = token_replace($tags['og:image'], array($type => $entity), array('clear' => TRUE));
+      $wrapper = file_stream_wrapper_get_instance_by_scheme('public');
+      $wrapperpath = $wrapper->getDirectoryPath();
+      $value = preg_replace("|^.+$wrapperpath/|", '', $value);
+      $tags['og:image'] = image_style_url('opengraph', $value);
+    }
     foreach ($tags as $tag => $value) {
-      $value = token_replace($value, array($type => $entity), array('clear' => TRUE));
+      $tags[$tag] = strip_tags(token_replace($value, array($type => $entity), array('clear' => TRUE)));
       drupal_add_html_head(array(
         '#tag' => 'meta',
         '#attributes' => array(
           'property' => $tag,
-          'content' => $value,
+          'content' => $tags[$tag],
         )), $tag);
+    }
+    if (variable_get('auto_opengraph_write_description', FALSE)) {
+      drupal_add_html_head(array(
+        '#tag' => 'meta',
+        '#attributes' => array(
+          'property' => 'description',
+          'content' => $tags['og:description']
+        ), 'description'
+      ));
     }
   }
 }

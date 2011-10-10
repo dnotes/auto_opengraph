@@ -13,6 +13,14 @@ function auto_opengraph_settings_form() {
   $form['auto_opengraph_write_description'] = array(
     '#type' => 'checkbox',
     '#title' => t('Also use og:description as meta description'),
+    '#default_value' => variable_get('auto_opengraph_write_description', FALSE),
+    '#description' => t('Useful for some search engines')
+  );
+  $form['auto_opengraph_style_images'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Style og:image according to Facebook specifications'),
+    '#default_value' => variable_get('auto_opengraph_style_images', TRUE),
+    '#description' => t('At least 50x50 pixels, max aspect ratio of 3:1')
   );
 
   // TODO: add custom og:types
