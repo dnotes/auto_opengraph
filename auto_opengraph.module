@@ -34,7 +34,7 @@ function auto_opengraph_theme() {
 }
 
 function auto_opengraph_get_tags($type = NULL, $bundle = NULL) {
-  $default = variable_get('auto_opengraph_tags_default', array(
+  $default = variable_get('auto_opengraph_tags__default', array(
     'og:type' => 'article',
     'og:url' => '[current-page:url:absolute]',              # defaults to the current url of the page
     'og:site_name' => '[site:name]',        # in almost all cases the site_name should be automatic
@@ -43,12 +43,13 @@ function auto_opengraph_get_tags($type = NULL, $bundle = NULL) {
     $ret = $default;
   }
   elseif ($type == 'front') {
-    $ret = array_merge($default, variable_get("auto_opengraph_tags_front", array()));
+    $ret = array_merge($default, variable_get("auto_opengraph_tags__front", array()));
   }
   else {
-    $ret = array_merge($default, variable_get("auto_opengraph_tags-$type", array()));
-    $var = $bundle ? "$type:$bundle" : $type;
-    $ret = array_merge($ret, variable_get("auto_opengraph_tags-$var", array()));
+    $ret = array_merge($default, variable_get("auto_opengraph_tags__$type", array()));
+    if ($bundle) {
+      $ret = array_merge($ret, variable_get("auto_opengraph_tags__{$type}__$bundle", array()));
+    }
   }
   str_replace('<none>', '', $ret);
   return array_filter($ret);
@@ -56,49 +57,47 @@ function auto_opengraph_get_tags($type = NULL, $bundle = NULL) {
 
 function _auto_opengraph_form($type = NULL, $bundle = NULL, $fieldset = NULL) {
   drupal_add_css(drupal_get_path('module', 'auto_opengraph') . '/auto_opengraph_form.css');
-  $var = $bundle ? "$type:$bundle" : $type;
-  if ($var == 'front') {
-    $tags = variable_get("auto_opengraph_tags_front", array());
-  }
-  elseif ($var && $var != 'default') {
-    $tags = variable_get("auto_opengraph_tags-$var", array());
+  if (!$type || $type == 'default') {
+    $tags = auto_opengraph_get_tags();
+    $tagtype = 'default';
   }
   else {
-    $tags = auto_opengraph_get_tags();
+    $tagtype = !empty($bundle) ? "{$type}__$bundle" : $type;
+    $tags = variable_get("auto_opengraph_tags__$tagtype", array());
   }
   $Basic = array(
-    'og:title',            # defaults to the page title
-    'og:type',
-    'og:url',              # defaults to the current url of the page
-    'og:image',
-    'fb:admins',
-    'fb:app_id',
-    'og:site_name',        # in almost all cases the site_name should be automatic
-    'og:description',
+    'og:title' => t('The title for the page.'),                                  # defaults to the page title
+    'og:type' => t('The type of opengraph page represented. Choose from: @types', array('@types' => implode(', ', auto_opengraph_types()))),
+    'og:url' => t('The url of the opengraph page.'),                             # defaults to the current url of the page
+    'og:image' => t('The url of an image to display for this opengraph page.  The image will be processed according to Facebook standards.'),
+    'fb:admins' => t('A comma-separated list of Facebook user ids or user names who should be allowed to administer the page.'),
+    'fb:app_id' => t('The app ID number of the Facebook app that should administer the page.'),
+    'og:site_name' => t('In almost all cases, this should just be [site:name].'),
+    'og:description' => t('A short description for the page.'),
   );
   $Advanced = array(
     // Multimedia
-    'og:audio',
-    'og:audio:title',
-    'og:audio:artist',
-    'og:audio:album',
-    'og:audio:type',
-    'og:video',
-    'og:video:height',
-    'og:video:width',
-    'og:video:type',
+    'og:audio' => t('The url of a publicly-available audio file which should play on Facebook.'),
+    'og:audio:title' => t('The title of the audio file.'),
+    'og:audio:artist' => t('The artist of the audio file.'),
+    'og:audio:album' => t('The album containing the audio file.'),
+    'og:audio:type' => t('The mime type of the audio file.'),
+    'og:video' => t('The url of a publicly-available video file which should play on Facebook.'),
+    'og:video:height' => t('The height of the video file.'),
+    'og:video:width' => t('The width of the video file.'),
+    'og:video:type' => t('The mime type of the video file.'),
     // Location
-    'og:latitude',
-    'og:longitude',
-    'og:street-address',
-    'og:locality',
-    'og:region',
-    'og:postal-code',
-    'og:country-name',
+    'og:latitude' => t('Latitude in decimal format.'),
+    'og:longitude' => t('Longitude in decimal format.'),
+    'og:street-address' => t('The street address of the location associated with this page.'),
+    'og:locality' => t('The city, town, or local administrative area.'),
+    'og:region' => t('The state, province, or regional administrative area.'),
+    'og:postal-code' => t('The postal code.'),
+    'og:country-name' => t('The country name.'),
     // Contact
-    'og:email',
-    'og:phone_number',
-    'og:fax_number',
+    'og:email' => t('The PUBLIC contact email of the entity represented by the page.'),
+    'og:phone_number' => t('The PUBLIC contact phone of the entity represented by the page.'),
+    'og:fax_number' => t('The PUBLIC contact fax of the entity represented by the page.'),
   );
   $Custom = array(); // TODO: implement custom fields?
   $element = array(
@@ -106,8 +105,7 @@ function _auto_opengraph_form($type = NULL, $bundle = NULL, $fieldset = NULL) {
     '#title' => $fieldset ? $fieldset : t('Auto opengraph tags'),
     '#collapsible' => TRUE,
     '#collapsed' => TRUE,
-    '#tree' => FALSE,
-    '#value_callback' => '_auto_opengraph_element_value',
+    '#tree' => TRUE,
     '#attributes' => array('class' => array('auto_opengraph_element')),
   );
   foreach (array('Basic', 'Advanced', 'Custom') as $category) {
@@ -118,24 +116,27 @@ function _auto_opengraph_form($type = NULL, $bundle = NULL, $fieldset = NULL) {
         '#collapsible' => TRUE,
         '#collapsed' => $category != 'Basic',
       );
-      foreach ($$category as $field) {
+      foreach ($$category as $field => $description) {
+        if (is_numeric($field)) {
+          $field = $description;
+        }
         $element[$category][$field] = array(
           '#type' => 'textfield',
-          '#title' => preg_replace('/(og:|fb:)/', '', $field),
+          '#attributes' => array('title' => check_plain($description)),
+          '#title' => str_replace('og:', '', $field),
           '#default_value' => !empty($tags[$field]) ? $tags[$field] : '',
         );
       }
     }
   }
   $token_type = ($type && !in_array($type, array('default', 'front'))) ? array($type) : array();
+  $token_type = str_replace('taxonomy_term', 'term', $token_type);              // Why, Dave?
   $element['tokens'] = array(
     '#theme' => 'token_tree',
     '#token_types' => $token_type,
   );
   return $element;
 }
-
-
 
 function _auto_opengraph_map_entities() {
   if (!$cached = cache_get('auto_opengraph:entity_types')) {
@@ -198,7 +199,36 @@ function auto_opengraph_types() {
   return $ret;
 }
 
-
+function auto_opengraph_preprocess_page($vars) {
+  if ($vars['is_front']) {
+    $tags = auto_opengraph_get_tags('front');
+    $entity = new stdClass;
+  }
+  else {
+    foreach(_auto_opengraph_map_entities() as $type => $path) {
+      if (stripos($_GET['q'], $path) === 0) {
+        $entity_info = entity_get_info($type);
+        $id = arg(substr_count($path, '/'));
+        if ($entities = entity_load($type, array($id))) { // intentional assignment of $entity
+          $entity = array_pop($entities);
+          $tags = auto_opengraph_get_tags($type, $entity->{$entity_info['entity keys']['bundle']});
+        }
+        break;
+      }
+    }
+  }
+  if ($tags) {
+    foreach ($tags as $tag => $value) {
+      $value = token_replace($value, array($type => $entity), array('clear' => TRUE));
+      drupal_add_html_head(array(
+        '#tag' => 'meta',
+        '#attributes' => array(
+          'property' => $tag,
+          'content' => $value,
+        )), $tag);
+    }
+  }
+}
 
 // IMAGE STYLES / EFFECTS
 
