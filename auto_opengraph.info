@@ -2,5 +2,6 @@
 name = Auto Opengraph
 description = Manages creation of opengraph tags for facebook.
 package = Facebook
-version = 0.1
+dependencies[] = token
+dependencies[] = imagecache
 core = 6.x
