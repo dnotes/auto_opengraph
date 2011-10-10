@@ -25,10 +25,6 @@ function auto_opengraph_theme() {
     'auto_opengraph_crop_summary' => array(
       'variables' => array('data' => NULL),
     ),
-    'auto_opengraph_image' => array(
-      'file' => 'auto_opengraph.theme.inc',
-      'variables' => array('image' => NULL),
-    ),
   );
   return $ret;
 }
