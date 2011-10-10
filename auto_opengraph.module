@@ -33,26 +33,39 @@ function auto_opengraph_theme() {
   return $ret;
 }
 
-function _auto_opengraph_get_tags($type = NULL, $bundle = NULL) {
+function auto_opengraph_get_tags($type = NULL, $bundle = NULL) {
   $default = variable_get('auto_opengraph_tags_default', array(
     'og:type' => 'article',
-    'og:url' => '[url:absolute]',              # defaults to the current url of the page
+    'og:url' => '[current-page:url:absolute]',              # defaults to the current url of the page
     'og:site_name' => '[site:name]',        # in almost all cases the site_name should be automatic
   ));
   if (is_null($type) || $type == 'default') {
-    return $default;
+    $ret = $default;
   }
   elseif ($type == 'front') {
-    return array_merge($default, variable_get("auto_opengraph_tags_front", array()));
+    $ret = array_merge($default, variable_get("auto_opengraph_tags_front", array()));
   }
   else {
+    $ret = array_merge($default, variable_get("auto_opengraph_tags-$type", array()));
     $var = $bundle ? "$type:$bundle" : $type;
-    return array_merge($default, variable_get("auto_opengraph_tags-$var", array()));
+    $ret = array_merge($ret, variable_get("auto_opengraph_tags-$var", array()));
   }
+  str_replace('<none>', '', $ret);
+  return array_filter($ret);
 }
 
-function auto_opengraph_form($type = NULL, $bundle = NULL, $fieldset = NULL) {
-  $tags = _auto_opengraph_get_tags($type, $bundle);
+function _auto_opengraph_form($type = NULL, $bundle = NULL, $fieldset = NULL) {
+  drupal_add_css(drupal_get_path('module', 'auto_opengraph') . '/auto_opengraph_form.css');
+  $var = $bundle ? "$type:$bundle" : $type;
+  if ($var == 'front') {
+    $tags = variable_get("auto_opengraph_tags_front", array());
+  }
+  elseif ($var && $var != 'default') {
+    $tags = variable_get("auto_opengraph_tags-$var", array());
+  }
+  else {
+    $tags = auto_opengraph_get_tags();
+  }
   $Basic = array(
     'og:title',            # defaults to the page title
     'og:type',
@@ -88,34 +101,55 @@ function auto_opengraph_form($type = NULL, $bundle = NULL, $fieldset = NULL) {
     'og:fax_number',
   );
   $Custom = array(); // TODO: implement custom fields?
+  $element = array(
+    '#type' => 'fieldset',
+    '#title' => $fieldset ? $fieldset : t('Auto opengraph tags'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+    '#tree' => FALSE,
+    '#value_callback' => '_auto_opengraph_element_value',
+    '#attributes' => array('class' => array('auto_opengraph_element')),
+  );
   foreach (array('Basic', 'Advanced', 'Custom') as $category) {
     if (count($$category)) {
-      $form[$category] = array(
+      $element[$category] = array(
         '#type' => 'fieldset',
         '#title' => t($category),
-        '#collapsible' => $category != 'Basic',
+        '#collapsible' => TRUE,
         '#collapsed' => $category != 'Basic',
       );
       foreach ($$category as $field) {
-        $form[$category][$field] = array(
+        $element[$category][$field] = array(
           '#type' => 'textfield',
           '#title' => preg_replace('/(og:|fb:)/', '', $field),
-          '#default_value' => $tags[$field],
+          '#default_value' => !empty($tags[$field]) ? $tags[$field] : '',
         );
       }
     }
   }
+  $token_type = ($type && !in_array($type, array('default', 'front'))) ? array($type) : array();
+  $element['tokens'] = array(
+    '#theme' => 'token_tree',
+    '#token_types' => $token_type,
+  );
+  return $element;
 }
 
+
+
 function _auto_opengraph_map_entities() {
-  if (!$entity_types = cache_get('auto_opengraph:entity_types')) {
+  if (!$cached = cache_get('auto_opengraph:entity_types')) {
     $test = new stdClass();
     foreach (entity_get_info() as $entity_type => $info) {
       if ($info['uri callback'] && function_exists($info['uri callback'])) {
-        $entity_types[$entity_type] = @call_user_func_array($info['uri callback'], array($test));
+        $uri = @call_user_func_array($info['uri callback'], array($test));
+        $entity_types[$entity_type] = $uri['path'];
       }
     }
     cache_set('auto_opengraph:entity_types', $entity_types);
+  }
+  else {
+    $entity_types = $cached->data;
   }
   return is_array($entity_types) ? $entity_types : array();
 }
