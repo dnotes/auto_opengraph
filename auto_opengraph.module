@@ -62,6 +62,7 @@ function auto_opengraph_get_tags($type = NULL, $bundle = NULL) {
 
 function _auto_opengraph_form($type = NULL, $bundle = NULL, $fieldset = NULL) {
   drupal_add_css(drupal_get_path('module', 'auto_opengraph') . '/auto_opengraph_form.css');
+  drupal_add_js(drupal_get_path('module', 'token') . '/token.js');
   if (!$type || $type == 'default') {
     $tags = auto_opengraph_get_tags();
     $tagtype = 'default';
@@ -74,11 +75,11 @@ function _auto_opengraph_form($type = NULL, $bundle = NULL, $fieldset = NULL) {
     'og:title' => t('The title for the page.'),                                  # defaults to the page title
     'og:type' => t('The type of opengraph page represented. Choose from: @types', array('@types' => implode(', ', auto_opengraph_types()))),
     'og:url' => t('The url of the opengraph page.'),                             # defaults to the current url of the page
-    'og:image' => t('The url of an image to display for this opengraph page.  The image will be processed according to Facebook standards.'),
+    'og:image' => t('The url of an image to display for this opengraph page.  If you are styling images for Facebook (recommended), you should use the "filefield-filepath" token.'),
     'fb:admins' => t('A comma-separated list of Facebook user ids or user names who should be allowed to administer the page.'),
     'fb:app_id' => t('The app ID number of the Facebook app that should administer the page.'),
     'og:site_name' => t('In almost all cases, this should just be [site:name].'),
-    'og:description' => t('A short description for the page.'),
+    'og:description' => t('A short description for the page. You may use the special [description] token to retrieve the node teaser and term description.'),
   );
   $Advanced = array(
     // Multimedia
@@ -111,7 +112,7 @@ function _auto_opengraph_form($type = NULL, $bundle = NULL, $fieldset = NULL) {
     '#collapsible' => TRUE,
     '#collapsed' => TRUE,
     '#tree' => TRUE,
-    '#attributes' => array('class' => array('auto_opengraph_element')),
+    '#attributes' => array('class' => 'auto_opengraph_element'),
   );
   foreach (array('Basic', 'Advanced', 'Custom') as $category) {
     if (count($$category)) {
@@ -134,11 +135,12 @@ function _auto_opengraph_form($type = NULL, $bundle = NULL, $fieldset = NULL) {
       }
     }
   }
-  $token_type = ($type && !in_array($type, array('default', 'front'))) ? array($type) : array();
-  $token_type = str_replace('taxonomy_term', 'term', $token_type);              // Why, Dave?
+  $token_type = ($type && !in_array($type, array('default', 'front'))) ? array($type, 'global') : array('global');
   $element['tokens'] = array(
     '#type' => 'fieldset',
     '#title' => t('Available tokens'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
   );
   $element['tokens']['help'] = array(
     '#value' => theme('token_help', $token_type)
@@ -169,12 +171,15 @@ function auto_opengraph_preprocess_page(&$vars) {
         switch($type) {
           case 'node':
             $object = node_load(arg(1));
+            $tags = auto_opengraph_get_tags('node', $object->type);
             break;
           case 'user':
             $object = user_load(arg(1));
+            $tags = auto_opengraph_get_tags('user');
             break;
           case 'term':
             $object = taxonomy_get_term(arg(2));
+            $tags = auto_opengraph_get_tags('term', $object->vid);
             break;
         }
         break;
@@ -186,8 +191,22 @@ function auto_opengraph_preprocess_page(&$vars) {
   }
   if ($tags) {
     foreach ($tags as $tag => $value) {
+      if (stripos($value, '[description]') !== FALSE) {
+        if ($type == 'node') {
+          $value = str_replace('[description]', $object->teaser, $value);
+        }
+        elseif ($type == 'term') {
+          $value = str_replace('[description]', $object->description, $value);
+        }
+        else {
+          $value = str_replace('[description]', '', $value);
+        }
+      }
       $tags[$tag] = str_replace('"', "'", strip_tags(token_replace($value, $type, $object, TOKEN_PREFIX, TOKEN_SUFFIX, array('clear' => TRUE))));
-      drupal_set_html_head('<meta property="' . check_plain($property) . '" content="' . $tags[$tag] . '" />');
+      if ($tag == 'og:image' && variable_get('auto_opengraph_style_images', TRUE)) {
+        $tags['og:image'] = imagecache_create_url('opengraph', $tags['og:image']);
+      }
+      drupal_set_html_head('<meta property="' . check_plain($tag) . '" content="' . $tags[$tag] . '" />');
     }
     if (variable_get('auto_opengraph_write_description', FALSE)) {
       drupal_set_html_head('<meta property="description" content="' . $tags['og:description'] . '" />');
