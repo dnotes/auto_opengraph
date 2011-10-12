@@ -134,16 +134,19 @@ function _auto_opengraph_form($type = NULL, $bundle = NULL, $fieldset = NULL) {
   return $element;
 }
 
-function _auto_opengraph_map_entities() {
-  if (!$cached = cache_get('auto_opengraph:entity_types')) {
+function _auto_opengraph_map_entities($all = FALSE) {
+  if ($all || !$cached = cache_get('auto_opengraph:entity_types')) {
     $test = new stdClass();
+    $selected_entity_types = variable_get('auto_opengraph_entity_types', array('node', 'taxonomy_term'));
     foreach (entity_get_info() as $entity_type => $info) {
-      if ($info['uri callback'] && function_exists($info['uri callback'])) {
+      if ((in_array($entity_type, $selected_entity_types)) || ($all && $info['uri callback'] && function_exists($info['uri callback']))) {
         $uri = @call_user_func_array($info['uri callback'], array($test));
         $entity_types[$entity_type] = $uri['path'];
       }
     }
-    cache_set('auto_opengraph:entity_types', $entity_types);
+    if (!$all) {
+      cache_set('auto_opengraph:entity_types', $entity_types);
+    }
   }
   else {
     $entity_types = $cached->data;
@@ -218,17 +221,21 @@ function auto_opengraph_preprocess_page($vars) {
       $value = token_replace($tags['og:image'], array($type => $entity), array('clear' => TRUE));
       $wrapper = file_stream_wrapper_get_instance_by_scheme('public');
       $wrapperpath = $wrapper->getDirectoryPath();
-      $value = preg_replace("|^.+$wrapperpath/|", '', $value);
-      $tags['og:image'] = image_style_url('opengraph', $value);
+      $count = 0;
+      $value = preg_replace("|^.+$wrapperpath/|", '', $value, 1, $count);
+      if ($count) {
+        $tags['og:image'] = image_style_url('opengraph', $value);
+      }
     }
     foreach ($tags as $tag => $value) {
-      $tags[$tag] = strip_tags(token_replace($value, array($type => $entity), array('clear' => TRUE)));
-      drupal_add_html_head(array(
-        '#tag' => 'meta',
-        '#attributes' => array(
-          'property' => $tag,
-          'content' => $tags[$tag],
-        )), $tag);
+      if ($tags[$tag] = strip_tags(token_replace($value, array($type => $entity), array('clear' => TRUE)))) { // intentional assignment of $tags[$tag]
+        drupal_add_html_head(array(
+          '#tag' => 'meta',
+          '#attributes' => array(
+            'property' => $tag,
+            'content' => $tags[$tag],
+          )), $tag);
+      }
     }
     if (variable_get('auto_opengraph_write_description', FALSE)) {
       drupal_add_html_head(array(

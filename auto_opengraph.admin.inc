@@ -10,6 +10,12 @@ function auto_opengraph_settings_form() {
   
   $form['auto_opengraph_tags__default'] = _auto_opengraph_form(NULL, NULL, t('Default opengraph tag patterns'));
   $form['auto_opengraph_tags__front'] = _auto_opengraph_form('front', NULL, t('Overrides for front page'));
+  $form['auto_opengraph_tags__front']['auto_opengraph_tags_render__front'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Output different tags for front page'),
+    '#tree' => FALSE,
+    '#default_value' => variable_get('auto_opengraph_tags_render__front', TRUE),
+  );
   $form['auto_opengraph_write_description'] = array(
     '#type' => 'checkbox',
     '#title' => t('Also use og:description as meta description'),
@@ -23,12 +29,7 @@ function auto_opengraph_settings_form() {
     '#description' => t('At least 50x50 pixels, max aspect ratio of 3:1')
   );
 
-  // TODO: add custom og:types
-  // TODO: add app namespace
-
-  // TODO: add custom fields?
-
-  $entity_types = _auto_opengraph_map_entities();
+  $entity_types = _auto_opengraph_map_entities(TRUE);
   $auto_opengraph_entity_types = variable_get('auto_opengraph_entity_types', array('node', 'taxonomy_term'));
   $form['auto_opengraph_entity_types'] = array(
     '#type' => 'checkboxes',
@@ -63,7 +64,7 @@ function auto_opengraph_settings_form() {
 
 function auto_opengraph_form_preprocess($form, &$form_state) {
   foreach($form_state['values'] as $field => $value) {
-    if (stripos($field, 'auto_opengraph_tags') === 0) {
+    if (stripos($field, 'auto_opengraph_tags__') === 0) {
       $val = $value['Basic'] + $value['Advanced'];
       variable_set($field, array_filter($val));
       unset($form_state['values'][$field]);
