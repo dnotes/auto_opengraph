@@ -69,7 +69,7 @@ function auto_opengraph_settings_form() {
 
 function auto_opengraph_form_preprocess($form, &$form_state) {
   foreach($form_state['values'] as $field => $value) {
-    if (stripos($field, 'auto_opengraph_tags') === 0) {
+    if (stripos($field, 'auto_opengraph_tags__') === 0) {
       $val = $value['Basic'] + $value['Advanced'];
       variable_set($field, array_filter($val));
       unset($form_state['values'][$field]);

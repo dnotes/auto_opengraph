@@ -203,8 +203,16 @@ function auto_opengraph_preprocess_page(&$vars) {
         }
       }
       $tags[$tag] = str_replace('"', "'", strip_tags(token_replace($value, $type, $object, TOKEN_PREFIX, TOKEN_SUFFIX, array('clear' => TRUE))));
-      if ($tag == 'og:image' && variable_get('auto_opengraph_style_images', TRUE)) {
-        $tags['og:image'] = imagecache_create_url('opengraph', $tags['og:image']);
+      if ($tag == 'og:image') {
+        $filepath = file_create_path($tags['og:image']);
+        if ($filepath == $tags['og:image'] && variable_get('auto_opengraph_style_images', TRUE)) {
+          $tags['og:image'] = imagecache_create_url('opengraph', $tags['og:image']);
+          // if file_create_path returns the same as og:image, it can be imagecached if necessary
+        }
+        elseif ($filepath) {  // if file_create_path returns 0, it is a reference to an external path
+          // if file_create_path returns different from the og:image, it is a token or similar and should not be rendered
+          continue;
+        }
       }
       drupal_set_html_head('<meta property="' . check_plain($tag) . '" content="' . $tags[$tag] . '" />');
     }
